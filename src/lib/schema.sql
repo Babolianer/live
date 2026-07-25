@@ -117,3 +117,72 @@ CREATE INDEX IF NOT EXISTS idx_ai_conversations_user ON ai_conversations(user_id
 ALTER TABLE ai_messages ADD COLUMN conversation_id TEXT REFERENCES ai_conversations(id) ON DELETE CASCADE;
 ALTER TABLE ai_messages ADD COLUMN attachments TEXT;
 CREATE INDEX IF NOT EXISTS idx_ai_messages_conversation ON ai_messages(conversation_id, created_at);
+
+CREATE TABLE IF NOT EXISTS wealth_entries (
+  id          TEXT PRIMARY KEY,
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,
+  category    TEXT NOT NULL DEFAULT 'sonstiges'
+                CHECK (category IN ('konto','depot','krypto','sachwert','sonstiges')),
+  value       REAL NOT NULL,
+  notes       TEXT,
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wealth_entries_user ON wealth_entries(user_id);
+
+-- Snapshot of total net worth, recorded whenever a wealth entry changes.
+-- Real history only — no synthetic/backfilled data points.
+CREATE TABLE IF NOT EXISTS wealth_snapshots (
+  id          TEXT PRIMARY KEY,
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  total_value REAL NOT NULL,
+  created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wealth_snapshots_user ON wealth_snapshots(user_id, created_at);
+
+CREATE TABLE IF NOT EXISTS vehicles (
+  id                TEXT PRIMARY KEY,
+  user_id           TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name              TEXT NOT NULL, -- e.g. "BMW M140i"
+  license_plate     TEXT,
+  purchase_date     TEXT,
+  value             REAL,
+  inspection_due    TEXT, -- TÜV/HU due date
+  document_id       TEXT REFERENCES documents(id) ON DELETE SET NULL,
+  notes             TEXT,
+  created_at        TEXT NOT NULL,
+  updated_at        TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_vehicles_user ON vehicles(user_id);
+
+CREATE TABLE IF NOT EXISTS properties (
+  id             TEXT PRIMARY KEY,
+  user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name           TEXT NOT NULL, -- e.g. "Eigentumswohnung Musterstraße 1"
+  address         TEXT,
+  purchase_date  TEXT,
+  value          REAL,
+  document_id    TEXT REFERENCES documents(id) ON DELETE SET NULL,
+  notes          TEXT,
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_properties_user ON properties(user_id);
+
+-- One row per day per user. Manual entry only — no wearable/health-API sync
+-- (that would need real OAuth credentials for Apple Health / Google Fit).
+CREATE TABLE IF NOT EXISTS health_logs (
+  id          TEXT PRIMARY KEY,
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  log_date    TEXT NOT NULL,
+  steps       INTEGER,
+  water_liters REAL,
+  sleep_hours REAL,
+  workout     TEXT,
+  notes       TEXT,
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL,
+  UNIQUE(user_id, log_date)
+);
+CREATE INDEX IF NOT EXISTS idx_health_logs_user ON health_logs(user_id, log_date);

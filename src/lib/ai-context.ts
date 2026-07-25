@@ -47,6 +47,30 @@ export async function buildSystemPrompt(userId: string): Promise<string> {
     { category: string; provider_name: string; affiliate_id: string | null; deep_link_template: string }[]
   >(`SELECT category, provider_name, affiliate_id, deep_link_template FROM partner_tools WHERE enabled = 1`);
 
+  const wealthEntries = await query<{ name: string; category: string; value: number }[]>(
+    `SELECT name, category, value FROM wealth_entries WHERE user_id = ? ORDER BY value DESC`,
+    [userId]
+  );
+
+  const vehicles = await query<
+    { name: string; license_plate: string | null; value: number | null; inspection_due: string | null }[]
+  >(
+    `SELECT name, license_plate, value, inspection_due FROM vehicles WHERE user_id = ?`,
+    [userId]
+  );
+
+  const properties = await query<
+    { name: string; address: string | null; value: number | null }[]
+  >(`SELECT name, address, value FROM properties WHERE user_id = ?`, [userId]);
+
+  const recentHealthLogs = await query<
+    { log_date: string; steps: number | null; water_liters: number | null; sleep_hours: number | null; workout: string | null }[]
+  >(
+    `SELECT log_date, steps, water_liters, sleep_hours, workout FROM health_logs
+     WHERE user_id = ? ORDER BY log_date DESC LIMIT 7`,
+    [userId]
+  );
+
   const documentsBlock = documents.length
     ? documents
         .map((doc) => {
@@ -84,6 +108,36 @@ export async function buildSystemPrompt(userId: string): Promise<string> {
         .join("\n")
     : "Der Nutzer hat noch keine Ziele angelegt.";
 
+  const totalWealth = wealthEntries.reduce((sum, w) => sum + w.value, 0);
+  const wealthBlock = wealthEntries.length
+    ? `Gesamtvermögen: ${totalWealth}€\n` +
+      wealthEntries.map((w) => `- ${w.name} (${w.category}): ${w.value}€`).join("\n")
+    : "Der Nutzer hat noch keine Vermögenswerte erfasst.";
+
+  const vehiclesBlock = vehicles.length
+    ? vehicles
+        .map(
+          (v) =>
+            `- ${v.name}${v.license_plate ? ` (${v.license_plate})` : ""}${v.value ? `, Wert ${v.value}€` : ""}${v.inspection_due ? `, TÜV ${v.inspection_due}` : ""}`
+        )
+        .join("\n")
+    : "Der Nutzer hat noch keine Fahrzeuge erfasst.";
+
+  const propertiesBlock = properties.length
+    ? properties
+        .map((p) => `- ${p.name}${p.address ? ` (${p.address})` : ""}${p.value ? `, Wert ${p.value}€` : ""}`)
+        .join("\n")
+    : "Der Nutzer hat noch keine Immobilien erfasst.";
+
+  const healthBlock = recentHealthLogs.length
+    ? recentHealthLogs
+        .map(
+          (h) =>
+            `- ${h.log_date}: ${h.steps ?? "?"} Schritte, ${h.water_liters ?? "?"}L Wasser, ${h.sleep_hours ?? "?"}h Schlaf${h.workout ? `, ${h.workout}` : ""}`
+        )
+        .join("\n")
+    : "Der Nutzer hat noch keine Gesundheitsdaten erfasst.";
+
   const toolsBlock = partnerTools.length
     ? partnerTools
         .map((t) => `- Kategorie "${t.category}": ${t.provider_name} — ${buildDeepLink(t)}`)
@@ -97,7 +151,7 @@ Du hast KEINEN Zugriff auf Bankkonten, E-Mails oder externe Dienste — nur auf 
 Wenn ein Nutzer nach einem günstigeren Tarif fragt oder du bei einem Vertrag ein sinnvolles Sparpotenzial siehst, UND es für die passende Kategorie einen Eintrag unter "Verfügbare Vergleichs-Tools" gibt, darfst du proaktiv den echten Link daraus vorschlagen (niemals einen Link erfinden, der dort nicht steht). Gibt es keinen passenden Eintrag, sag das ehrlich, statt einen Anbieter zu erfinden.
 Wenn ein Nutzer nach seinem Fortschritt bei einem Ziel fragt, nutze die Daten unter "Ziele des Nutzers".
 
-Wenn der Nutzer dich bittet, einen Vertrag anzulegen (per Text oder durch Hochladen eines Vertragsdokuments/-fotos), rufe das Werkzeug "propose_contract" mit den erkannten Feldern auf, statt den Vertrag nur zu beschreiben. Fehlen Pflichtangaben (Name, Kategorie, Zahlungsintervall), frage kurz danach, BEVOR du das Werkzeug aufrufst — rate nichts, was nicht im Dokument steht oder vom Nutzer genannt wurde. Der Nutzer sieht die vorgeschlagenen Daten danach in einem Formular und muss sie selbst bestätigen; du speicherst nichts direkt.
+Wenn der Nutzer dich bittet, etwas anzulegen (Vertrag, Ziel, Vermögenswert, Fahrzeug, Immobilie oder Gesundheits-Eintrag — per Text oder durch Hochladen eines Dokuments/Fotos), rufe das passende Werkzeug auf ("propose_contract", "propose_goal", "propose_wealth_entry", "propose_vehicle", "propose_property" oder "propose_health_log"), statt es nur zu beschreiben. Fehlen Pflichtangaben, frage kurz danach, BEVOR du das Werkzeug aufrufst — rate nichts, was nicht im Dokument steht oder vom Nutzer genannt wurde. Der Nutzer sieht die vorgeschlagenen Daten danach in einem Formular und muss sie selbst bestätigen; du speicherst nichts direkt.
 
 ## Dokumente des Nutzers
 ${documentsBlock}
@@ -107,6 +161,18 @@ ${contractsBlock}
 
 ## Ziele des Nutzers
 ${goalsBlock}
+
+## Vermögen des Nutzers
+${wealthBlock}
+
+## Fahrzeuge des Nutzers
+${vehiclesBlock}
+
+## Immobilien des Nutzers
+${propertiesBlock}
+
+## Gesundheitsdaten der letzten 7 Tage
+${healthBlock}
 
 ## Verfügbare Vergleichs-Tools
 ${toolsBlock}`;

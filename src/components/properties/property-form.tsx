@@ -1,15 +1,14 @@
 "use client";
 
 import { useActionState } from "react";
-import { GOAL_CATEGORIES } from "@/lib/goal-constants";
-import { categoryLabel } from "@/lib/category-style";
 import { Button } from "@/components/ui/button";
-import type { GoalFormState } from "@/lib/actions/goal-actions";
-import type { GoalRow } from "@/lib/goals";
+import type { PropertyFormState } from "@/lib/actions/property-actions";
+import type { PropertyRow } from "@/lib/properties";
 
 type Props = {
-  action: (state: GoalFormState, formData: FormData) => Promise<GoalFormState>;
-  goal?: Partial<GoalRow>;
+  action: (state: PropertyFormState, formData: FormData) => Promise<PropertyFormState>;
+  property?: Partial<PropertyRow>;
+  documents: { id: string; original_name: string }[];
   onDone?: () => void;
   submitLabel?: string;
 };
@@ -18,8 +17,8 @@ const inputClass =
   "w-full rounded-life border border-border bg-surface-muted px-3.5 py-2.5 text-sm outline-none focus:border-accent";
 const labelClass = "mb-1.5 block text-sm font-medium";
 
-export function GoalForm({ action, goal, onDone, submitLabel }: Props) {
-  const [state, formAction, pending] = useActionState<GoalFormState, FormData>(
+export function PropertyForm({ action, property, documents, onDone, submitLabel }: Props) {
+  const [state, formAction, pending] = useActionState<PropertyFormState, FormData>(
     async (prevState, formData) => {
       const result = await action(prevState, formData);
       if (!result?.error) onDone?.();
@@ -38,75 +37,72 @@ export function GoalForm({ action, goal, onDone, submitLabel }: Props) {
           id="name"
           name="name"
           required
-          defaultValue={goal?.name}
-          placeholder="z. B. Thailand Reise 2026"
+          defaultValue={property?.name}
+          placeholder="z. B. Eigentumswohnung Musterstraße 1"
           className={inputClass}
         />
       </div>
 
       <div>
-        <label className={labelClass} htmlFor="category">
-          Kategorie
+        <label className={labelClass} htmlFor="address">
+          Adresse
         </label>
-        <select
-          id="category"
-          name="category"
-          defaultValue={goal?.category ?? "sonstiges"}
+        <input
+          id="address"
+          name="address"
+          defaultValue={property?.address ?? ""}
+          placeholder="Musterstraße 1, 12345 Musterstadt"
           className={inputClass}
-        >
-          {GOAL_CATEGORIES.map((c) => (
-            <option key={c} value={c}>
-              {categoryLabel(c)}
-            </option>
-          ))}
-        </select>
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelClass} htmlFor="targetAmount">
-            Zielbetrag (€)
+          <label className={labelClass} htmlFor="value">
+            Wert (€)
           </label>
           <input
-            id="targetAmount"
-            name="targetAmount"
+            id="value"
+            name="value"
             type="number"
             step="0.01"
-            min="0.01"
-            required
-            defaultValue={goal?.target_amount}
-            placeholder="4000"
+            min="0"
+            defaultValue={property?.value ?? ""}
+            placeholder="350000"
             className={inputClass}
           />
         </div>
         <div>
-          <label className={labelClass} htmlFor="currentAmount">
-            Aktueller Stand (€)
+          <label className={labelClass} htmlFor="purchaseDate">
+            Kaufdatum
           </label>
           <input
-            id="currentAmount"
-            name="currentAmount"
-            type="number"
-            step="0.01"
-            min="0"
-            defaultValue={goal?.current_amount ?? 0}
-            placeholder="0"
+            id="purchaseDate"
+            name="purchaseDate"
+            type="date"
+            defaultValue={property?.purchase_date ?? ""}
             className={inputClass}
           />
         </div>
       </div>
 
       <div>
-        <label className={labelClass} htmlFor="targetDate">
-          Zieldatum (optional)
+        <label className={labelClass} htmlFor="documentId">
+          Verknüpftes Dokument (z. B. Hypothek)
         </label>
-        <input
-          id="targetDate"
-          name="targetDate"
-          type="date"
-          defaultValue={goal?.target_date ?? ""}
+        <select
+          id="documentId"
+          name="documentId"
+          defaultValue={property?.document_id ?? ""}
           className={inputClass}
-        />
+        >
+          <option value="">Kein Dokument</option>
+          {documents.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.original_name}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div>
@@ -117,7 +113,7 @@ export function GoalForm({ action, goal, onDone, submitLabel }: Props) {
           id="notes"
           name="notes"
           rows={2}
-          defaultValue={goal?.notes ?? ""}
+          defaultValue={property?.notes ?? ""}
           className={inputClass}
         />
       </div>

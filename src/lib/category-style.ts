@@ -11,6 +11,10 @@ export const CATEGORY_LABELS: Record<string, string> = {
   fahrzeug: "Fahrzeug",
   bildung: "Bildung",
   alle: "Alle Kategorien",
+  konto: "Konto",
+  depot: "Depot",
+  krypto: "Krypto",
+  sachwert: "Sachwert",
 };
 
 export const CATEGORY_COLORS: Record<string, string> = {
@@ -25,6 +29,10 @@ export const CATEGORY_COLORS: Record<string, string> = {
   vermoegen: "bg-success/15 text-success",
   fahrzeug: "bg-danger/15 text-danger",
   bildung: "bg-foreground-muted/15 text-foreground-muted",
+  konto: "bg-accent/15 text-accent",
+  depot: "bg-success/15 text-success",
+  krypto: "bg-warning/15 text-warning",
+  sachwert: "bg-sky-500/15 text-sky-500",
 };
 
 export function categoryLabel(category: string): string {

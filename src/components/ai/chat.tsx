@@ -1,34 +1,49 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ComponentType } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Sparkles, ArrowUp, Paperclip, X, FileText, Image as ImageIcon } from "lucide-react";
 import clsx from "clsx";
 import { uploadChatAttachmentAction } from "@/lib/actions/document-actions";
-import { ContractProposalCard, type ContractProposal } from "@/components/ai/contract-proposal-card";
+import { ContractProposalCard } from "@/components/ai/contract-proposal-card";
+import { GoalProposalCard } from "@/components/ai/goal-proposal-card";
+import { WealthProposalCard } from "@/components/ai/wealth-proposal-card";
+import { VehicleProposalCard } from "@/components/ai/vehicle-proposal-card";
+import { PropertyProposalCard } from "@/components/ai/property-proposal-card";
+import { HealthProposalCard } from "@/components/ai/health-proposal-card";
 import type { AiMessageRow, MessageAttachment } from "@/lib/ai-messages";
 
-type AssistantContent =
-  | { type: "text"; text: string }
-  | { type: "contract_proposal"; text: string; proposal: ContractProposal };
+// Every "propose_*" tool result renders through this map — add one entry
+// here (matching the `proposalType` used server-side) to support a new kind.
+const PROPOSAL_CARDS: Record<string, ComponentType<{ proposal: never }>> = {
+  contract_proposal: ContractProposalCard,
+  goal_proposal: GoalProposalCard,
+  wealth_proposal: WealthProposalCard,
+  vehicle_proposal: VehicleProposalCard,
+  property_proposal: PropertyProposalCard,
+  health_proposal: HealthProposalCard,
+};
+
+type Proposal = { type: string; data: unknown };
 
 type Message = {
   role: "user" | "assistant";
   text: string;
   attachments: MessageAttachment[];
-  proposal?: ContractProposal;
+  proposal?: Proposal;
 };
 
-function parseAssistantContent(raw: string): AssistantContent {
+function parseAssistantContent(raw: string): { text: string; proposal?: Proposal } {
   try {
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === "object" && "type" in parsed) {
-      return parsed as AssistantContent;
+      if (parsed.type === "text") return { text: parsed.text ?? "" };
+      return { text: parsed.text ?? "", proposal: { type: parsed.type, data: parsed.proposal } };
     }
   } catch {
     // pre-existing plain-text messages from before structured content existed
   }
-  return { type: "text", text: raw };
+  return { text: raw };
 }
 
 function rowToMessage(row: AiMessageRow): Message {
@@ -36,13 +51,8 @@ function rowToMessage(row: AiMessageRow): Message {
   if (row.role === "user") {
     return { role: "user", text: row.content, attachments };
   }
-  const parsed = parseAssistantContent(row.content);
-  return {
-    role: "assistant",
-    text: parsed.text,
-    attachments: [],
-    proposal: parsed.type === "contract_proposal" ? parsed.proposal : undefined,
-  };
+  const { text, proposal } = parseAssistantContent(row.content);
+  return { role: "assistant", text, attachments: [], proposal };
 }
 
 export function Chat({
@@ -130,8 +140,13 @@ export function Chat({
       setMessages((prev) => {
         const next = [...prev];
         next[next.length - 1] =
-          data.type === "contract_proposal"
-            ? { role: "assistant", text: data.text, attachments: [], proposal: data.proposal }
+          data.type && data.type !== "text"
+            ? {
+                role: "assistant",
+                text: data.text,
+                attachments: [],
+                proposal: { type: data.type, data: data.proposal },
+              }
             : { role: "assistant", text: data.text || data.error || "…", attachments: [] };
         return next;
       });
@@ -196,11 +211,16 @@ export function Chat({
                   {m.text || (sending && i === messages.length - 1 ? "…" : "")}
                 </div>
               )}
-              {m.proposal && (
-                <div className="mt-2">
-                  <ContractProposalCard proposal={m.proposal} />
-                </div>
-              )}
+              {m.proposal &&
+                (() => {
+                  const ProposalCard = PROPOSAL_CARDS[m.proposal.type];
+                  if (!ProposalCard) return null;
+                  return (
+                    <div className="mt-2">
+                      <ProposalCard proposal={m.proposal.data as never} />
+                    </div>
+                  );
+                })()}
             </div>
           </div>
         ))}

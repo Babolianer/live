@@ -153,3 +153,28 @@ export async function recordFailedLogin(email: string): Promise<void> {
 export async function clearLoginAttempts(email: string): Promise<void> {
   await query(`DELETE FROM login_attempts WHERE email = ?`, [email.toLowerCase().trim()]);
 }
+
+export async function findUserById(id: string) {
+  const rows = await query<{ id: string; email: string; password_hash: string; name: string }[]>(
+    `SELECT id, email, password_hash, name FROM users WHERE id = ?`,
+    [id]
+  );
+  return rows[0] ?? null;
+}
+
+export async function updateUserProfile(userId: string, name: string, email: string) {
+  await query(`UPDATE users SET name = ?, email = ? WHERE id = ?`, [
+    name.trim(),
+    email.toLowerCase().trim(),
+    userId,
+  ]);
+}
+
+export async function updateUserPassword(userId: string, newPassword: string) {
+  const passwordHash = await hashPassword(newPassword);
+  await query(`UPDATE users SET password_hash = ? WHERE id = ?`, [passwordHash, userId]);
+}
+
+export async function deleteUserAccount(userId: string) {
+  await query(`DELETE FROM users WHERE id = ?`, [userId]);
+}

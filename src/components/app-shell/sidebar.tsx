@@ -28,7 +28,7 @@ export function Sidebar({ user }: { user: SessionUser }) {
 
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">
         {(user.role === "admin"
-          ? [...sidebarNav, { href: "/admin", label: "Admin", icon: "cog" }]
+          ? [...sidebarNav, { href: "/admin", label: "Admin", icon: "wrench" }]
           : sidebarNav
         ).map((item) => {
           const Icon = iconMap[item.icon];
@@ -50,23 +50,27 @@ export function Sidebar({ user }: { user: SessionUser }) {
           );
         })}
 
-        <p className="mt-5 mb-1 px-3 text-xs font-medium uppercase tracking-wide text-foreground-muted/70">
-          Demnächst
-        </p>
-        {comingSoonNav.map((item) => {
-          const Icon = iconMap[item.icon];
-          return (
-            <div
-              key={item.href}
-              className="flex items-center gap-3 rounded-life px-3 py-2.5 text-sm font-medium text-foreground-muted/50"
-              title="Kommt bald"
-            >
-              <Icon size={18} />
-              <span className="flex-1">{item.label}</span>
-              <Lock size={14} />
-            </div>
-          );
-        })}
+        {comingSoonNav.length > 0 && (
+          <>
+            <p className="mt-5 mb-1 px-3 text-xs font-medium uppercase tracking-wide text-foreground-muted/70">
+              Demnächst
+            </p>
+            {comingSoonNav.map((item) => {
+              const Icon = iconMap[item.icon];
+              return (
+                <div
+                  key={item.href}
+                  className="flex items-center gap-3 rounded-life px-3 py-2.5 text-sm font-medium text-foreground-muted/50"
+                  title="Kommt bald"
+                >
+                  <Icon size={18} />
+                  <span className="flex-1">{item.label}</span>
+                  <Lock size={14} />
+                </div>
+              );
+            })}
+          </>
+        )}
       </nav>
 
       <div className="mt-4 rounded-life bg-surface-muted p-3">

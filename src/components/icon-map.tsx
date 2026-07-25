@@ -10,6 +10,7 @@ import {
   Car,
   Building2,
   Cog,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 
@@ -25,4 +26,5 @@ export const iconMap: Record<string, LucideIcon> = {
   car: Car,
   building: Building2,
   cog: Cog,
+  wrench: Wrench,
 };
