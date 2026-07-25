@@ -1,16 +1,16 @@
 import { getContract, updateContract, deleteContractRow } from "@/lib/contracts";
 import { getGoal, updateGoal, deleteGoalRow } from "@/lib/goals";
-import { getWealthEntry, updateWealthEntry, deleteWealthEntry } from "@/lib/wealth";
+import { getWealthAsset, updateWealthAsset, deleteWealthAsset } from "@/lib/wealth-assets";
 import { getVehicle, updateVehicle, deleteVehicle } from "@/lib/vehicles";
 import { getProperty, updateProperty, deleteProperty } from "@/lib/properties";
 import { getHealthLog, upsertHealthLog, deleteHealthLog } from "@/lib/health";
 
-export type EntityType = "contract" | "goal" | "wealth_entry" | "vehicle" | "property" | "health_log";
+export type EntityType = "contract" | "goal" | "wealth_asset" | "vehicle" | "property" | "health_log";
 
 export const ENTITY_TYPES: EntityType[] = [
   "contract",
   "goal",
-  "wealth_entry",
+  "wealth_asset",
   "vehicle",
   "property",
   "health_log",
@@ -62,19 +62,37 @@ export const ENTITY_HANDLERS: Record<EntityType, Handler> = {
     label: (row) => String(row.name),
     revalidate: ["/goals", "/home"],
   },
-  wealth_entry: {
-    get: getWealthEntry,
+  wealth_asset: {
+    get: getWealthAsset,
+    // Simplified shape for AI-driven quick capture (matches propose_wealth_asset's
+    // schema) — value stands in for quantity*price on quantity-1 manual assets.
+    // Detailed multi-transaction assets are managed on the Vermögen pages, not via chat.
     toInput: (row) => ({
       name: row.name,
-      category: row.category,
-      value: row.value,
+      typ: row.typ,
+      value: Number(row.quantity) * Number(row.price_per_unit),
       notes: row.notes,
     }),
-    update: (id, userId, input) =>
-      updateWealthEntry(id, userId, input as Parameters<typeof updateWealthEntry>[2]),
-    del: deleteWealthEntry,
+    update: async (id, userId, input) => {
+      const existing = await getWealthAsset(id, userId);
+      if (!existing) return;
+      const changes = input as { name: string; typ: typeof existing.typ; value: number; notes: string | null };
+      await updateWealthAsset(id, userId, {
+        groupId: existing.group_id,
+        sectorId: existing.sector_id,
+        name: changes.name,
+        typ: changes.typ,
+        quantity: existing.quantity,
+        pricePerUnit: changes.value,
+        currency: existing.currency,
+        isin: existing.isin,
+        symbol: existing.symbol,
+        notes: changes.notes,
+      });
+    },
+    del: deleteWealthAsset,
     label: (row) => String(row.name),
-    revalidate: ["/wealth", "/home"],
+    revalidate: ["/wealth", "/wealth/vermoegen", "/home"],
   },
   vehicle: {
     get: getVehicle,

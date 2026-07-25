@@ -75,6 +75,7 @@ async function main() {
   console.log(`Schema angewendet (${applied}/${statements.length} Statements ausgeführt).`);
 
   await backfillConversations(client);
+  await backfillWealthAssets(client);
 
   client.close();
 }
@@ -102,6 +103,65 @@ async function backfillConversations(client) {
       args: [id, userId],
     });
     console.log(`Bestehende Chat-Nachrichten für Nutzer ${userId} einer neuen Unterhaltung zugeordnet.`);
+  }
+}
+
+// One-time, idempotent migration: each legacy wealth_entries row becomes a
+// wealth_assets row (typ OTHER, quantity 1, price_per_unit = value) filed
+// under an auto-created "Sonstiges" group, and the most recent
+// wealth_snapshots total seeds the new net-worth history. Skipped per-user
+// once they already have any wealth_assets row (already migrated, or
+// started using the new model directly) — old tables are left untouched.
+async function backfillWealthAssets(client) {
+  const usersWithEntries = await client.execute(`SELECT DISTINCT user_id FROM wealth_entries`);
+  if (usersWithEntries.rows.length === 0) return;
+
+  for (const row of usersWithEntries.rows) {
+    const userId = row.user_id;
+    const existingAssets = await client.execute({
+      sql: `SELECT COUNT(*) as count FROM wealth_assets WHERE user_id = ?`,
+      args: [userId],
+    });
+    if (Number(existingAssets.rows[0].count) > 0) continue;
+
+    const now = new Date().toISOString();
+    const groupId = crypto.randomUUID();
+    await client.execute({
+      sql: `INSERT INTO wealth_groups (id, user_id, name, typ, farbe, icon, sort_order, stale_after_days, created_at, updated_at)
+            VALUES (?, ?, 'Sonstiges', 'OTHER', '#6366f1', 'wallet', 0, 30, ?, ?)`,
+      args: [groupId, userId, now, now],
+    });
+
+    const entries = await client.execute({
+      sql: `SELECT id, name, value, notes, created_at, updated_at FROM wealth_entries WHERE user_id = ?`,
+      args: [userId],
+    });
+    let sortOrder = 0;
+    for (const entry of entries.rows) {
+      await client.execute({
+        sql: `INSERT INTO wealth_assets
+                (id, user_id, group_id, sector_id, name, typ, quantity, price_per_unit, currency, isin, symbol, sort_order, notes, created_at, updated_at)
+              VALUES (?, ?, ?, NULL, ?, 'OTHER', 1, ?, 'EUR', NULL, NULL, ?, ?, ?, ?)`,
+        args: [crypto.randomUUID(), userId, groupId, entry.name, entry.value, sortOrder++, entry.notes, entry.created_at, entry.updated_at],
+      });
+    }
+
+    const lastSnapshot = await client.execute({
+      sql: `SELECT total_value, created_at FROM wealth_snapshots WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`,
+      args: [userId],
+    });
+    if (lastSnapshot.rows.length > 0) {
+      const snap = lastSnapshot.rows[0];
+      const dayStart = new Date(snap.created_at);
+      dayStart.setHours(0, 0, 0, 0);
+      await client.execute({
+        sql: `INSERT OR IGNORE INTO wealth_net_worth_snapshots (id, user_id, date, net_worth, total_debts, breakdown_json)
+              VALUES (?, ?, ?, ?, 0, ?)`,
+        args: [crypto.randomUUID(), userId, dayStart.toISOString(), snap.total_value, JSON.stringify({ OTHER: snap.total_value })],
+      });
+    }
+
+    console.log(`Vermögenswerte für Nutzer ${userId} migriert (${entries.rows.length} Einträge).`);
   }
 }
 

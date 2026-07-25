@@ -12,7 +12,7 @@ import { readImageAsDataUrl } from "@/lib/storage";
 import { runChat, type ChatMessage, type ContentPart, type ToolDefinition } from "@/lib/openrouter";
 import { CATEGORIES } from "@/lib/contract-constants";
 import { GOAL_CATEGORIES } from "@/lib/goal-constants";
-import { WEALTH_CATEGORIES } from "@/lib/wealth-constants";
+import { ASSET_TYPES } from "@/lib/wealth-asset-constants";
 import { ENTITY_HANDLERS, ENTITY_TYPES, type EntityType } from "@/lib/entity-registry";
 
 const VISION_MODEL = process.env.OPENROUTER_VISION_MODEL || "google/gemma-4-31b-it:free";
@@ -91,20 +91,20 @@ const PROPOSAL_TOOLS: Record<
       notes: z.preprocess(emptyToNull, z.string().nullable().optional()),
     }),
   },
-  propose_wealth_entry: {
+  propose_wealth_asset: {
     proposalType: "wealth_proposal",
     definition: {
       type: "function",
       function: {
-        name: "propose_wealth_entry",
+        name: "propose_wealth_asset",
         description:
-          "Schlägt vor, einen Vermögenswert (Konto, Depot, Krypto, Sachwert) mit aktuellem Wert anzulegen. Der Nutzer muss aktiv bestätigen.",
+          "Schlägt vor, einen einfachen Vermögenswert (Konto, Depot-Position, Krypto, Sachwert) mit aktuellem Gesamtwert anzulegen. Für Aktien/ETF/Krypto mit Kaufhistorie und Live-Kursen nutzt der Nutzer die Vermögen-Seite. Der Nutzer muss aktiv bestätigen.",
         parameters: {
           type: "object",
           properties: {
             name: { type: "string", description: "z. B. 'Girokonto', 'Depot ING', 'Bitcoin Wallet'" },
-            category: { type: "string", enum: [...WEALTH_CATEGORIES] },
-            value: { type: "number", description: "Aktueller Wert in Euro" },
+            typ: { type: "string", enum: [...ASSET_TYPES] },
+            value: { type: "number", description: "Aktueller Gesamtwert in Euro" },
             notes: { type: "string" },
           },
           required: ["name"],
@@ -113,7 +113,7 @@ const PROPOSAL_TOOLS: Record<
     },
     schema: z.object({
       name: z.string().trim().min(1),
-      category: z.string().trim().min(1).default("sonstiges"),
+      typ: z.enum(ASSET_TYPES).default("OTHER"),
       value: z.preprocess(emptyToNull, z.coerce.number().nullable().optional()),
       notes: z.preprocess(emptyToNull, z.string().nullable().optional()),
     }),

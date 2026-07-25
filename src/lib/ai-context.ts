@@ -49,8 +49,8 @@ export async function buildSystemPrompt(userId: string): Promise<string> {
     { category: string; provider_name: string; affiliate_id: string | null; deep_link_template: string }[]
   >(`SELECT category, provider_name, affiliate_id, deep_link_template FROM partner_tools WHERE enabled = 1`);
 
-  const wealthEntries = await query<{ id: string; name: string; category: string; value: number }[]>(
-    `SELECT id, name, category, value FROM wealth_entries WHERE user_id = ? ORDER BY value DESC`,
+  const wealthAssets = await query<{ id: string; name: string; typ: string; quantity: number; price_per_unit: number }[]>(
+    `SELECT id, name, typ, quantity, price_per_unit FROM wealth_assets WHERE user_id = ? ORDER BY (quantity * price_per_unit) DESC`,
     [userId]
   );
 
@@ -123,10 +123,12 @@ export async function buildSystemPrompt(userId: string): Promise<string> {
         .join("\n")
     : "Der Nutzer hat noch keine Ziele angelegt.";
 
-  const totalWealth = wealthEntries.reduce((sum, w) => sum + w.value, 0);
-  const wealthBlock = wealthEntries.length
-    ? `Gesamtvermögen: ${totalWealth}€\n` +
-      wealthEntries.map((w) => `- [id: ${w.id}] ${w.name} (${w.category}): ${w.value}€`).join("\n")
+  const totalWealth = wealthAssets.reduce((sum, w) => sum + w.quantity * w.price_per_unit, 0);
+  const wealthBlock = wealthAssets.length
+    ? `Gesamtvermögen: ${Math.round(totalWealth)}€\n` +
+      wealthAssets
+        .map((w) => `- [id: ${w.id}] ${w.name} (${w.typ}): ${Math.round(w.quantity * w.price_per_unit)}€`)
+        .join("\n")
     : "Der Nutzer hat noch keine Vermögenswerte erfasst.";
 
   const vehiclesBlock = vehicles.length

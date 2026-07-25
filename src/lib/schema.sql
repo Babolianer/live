@@ -186,3 +186,167 @@ CREATE TABLE IF NOT EXISTS health_logs (
   UNIQUE(user_id, log_date)
 );
 CREATE INDEX IF NOT EXISTS idx_health_logs_user ON health_logs(user_id, log_date);
+
+-- ── Vermögen (Wealth) v2 — ported from the Kapitalverwaltung data model ─────
+-- Supersedes wealth_entries/wealth_snapshots above (kept in place, unused,
+-- for historical data — see scripts/migrate.mjs backfill). Real assets with
+-- quantity/avg-price instead of a single manual value, buy/sell transactions,
+-- savings plans, savings goals, debts, price history and live price refresh.
+
+-- A container for assets (bank, broker, crypto exchange, retirement, ...).
+CREATE TABLE IF NOT EXISTS wealth_groups (
+  id                TEXT PRIMARY KEY,
+  user_id           TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name              TEXT NOT NULL,
+  typ               TEXT NOT NULL DEFAULT 'OTHER'
+                      CHECK (typ IN ('BANK','BROKER','RETIREMENT','CRYPTO_EXCHANGE','METALS','REAL_ESTATE','SAVINGS','LONGTERM','OTHER')),
+  farbe             TEXT NOT NULL DEFAULT '#6366f1',
+  icon              TEXT NOT NULL DEFAULT 'wallet',
+  sort_order        INTEGER NOT NULL DEFAULT 0,
+  stale_after_days  INTEGER NOT NULL DEFAULT 30,
+  created_at        TEXT NOT NULL,
+  updated_at        TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wealth_groups_user ON wealth_groups(user_id, sort_order);
+
+CREATE TABLE IF NOT EXISTS wealth_sectors (
+  id          TEXT PRIMARY KEY,
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,
+  slug        TEXT NOT NULL,
+  color       TEXT NOT NULL DEFAULT '#6366f1',
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL,
+  UNIQUE(user_id, slug)
+);
+CREATE INDEX IF NOT EXISTS idx_wealth_sectors_user ON wealth_sectors(user_id);
+
+CREATE TABLE IF NOT EXISTS wealth_assets (
+  id                TEXT PRIMARY KEY,
+  user_id           TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  group_id          TEXT NOT NULL REFERENCES wealth_groups(id) ON DELETE CASCADE,
+  sector_id         TEXT REFERENCES wealth_sectors(id) ON DELETE SET NULL,
+  name              TEXT NOT NULL,
+  typ               TEXT NOT NULL DEFAULT 'OTHER'
+                      CHECK (typ IN ('STOCK','ETF','CRYPTO','CASH','METAL','TAGESGELD','IMMOBILIE','OTHER')),
+  quantity          REAL NOT NULL DEFAULT 1,
+  price_per_unit    REAL NOT NULL DEFAULT 0,
+  currency          TEXT NOT NULL DEFAULT 'EUR',
+  isin              TEXT,
+  symbol            TEXT,
+  sort_order        INTEGER NOT NULL DEFAULT 0,
+  notes             TEXT,
+  price_updated_at  TEXT,
+  created_at        TEXT NOT NULL,
+  updated_at        TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wealth_assets_user ON wealth_assets(user_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_wealth_assets_group ON wealth_assets(group_id);
+CREATE INDEX IF NOT EXISTS idx_wealth_assets_symbol ON wealth_assets(user_id, symbol);
+
+CREATE TABLE IF NOT EXISTS wealth_transactions (
+  id               TEXT PRIMARY KEY,
+  user_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  asset_id         TEXT NOT NULL REFERENCES wealth_assets(id) ON DELETE CASCADE,
+  date             TEXT NOT NULL,
+  type             TEXT NOT NULL CHECK (type IN ('BUY','SELL')),
+  quantity         REAL NOT NULL,
+  price_per_unit   REAL NOT NULL,
+  notes            TEXT,
+  savings_plan_id  TEXT REFERENCES wealth_savings_plans(id) ON DELETE SET NULL,
+  is_anchor        INTEGER NOT NULL DEFAULT 0,
+  created_at       TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wealth_transactions_asset ON wealth_transactions(asset_id, date);
+CREATE INDEX IF NOT EXISTS idx_wealth_transactions_plan ON wealth_transactions(savings_plan_id);
+
+-- A debt/loan, optionally financing a specific asset (e.g. a mortgage on a
+-- real-estate asset) — but attachable to any asset, matching the source model.
+CREATE TABLE IF NOT EXISTS wealth_debts (
+  id                TEXT PRIMARY KEY,
+  user_id           TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  asset_id          TEXT NOT NULL REFERENCES wealth_assets(id) ON DELETE CASCADE,
+  name              TEXT NOT NULL,
+  original_amount   REAL NOT NULL,
+  remaining_amount  REAL NOT NULL,
+  interest_rate     REAL NOT NULL DEFAULT 0,
+  monthly_payment   REAL NOT NULL DEFAULT 0,
+  start_date        TEXT NOT NULL,
+  created_at        TEXT NOT NULL,
+  updated_at        TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wealth_debts_asset ON wealth_debts(asset_id);
+
+CREATE TABLE IF NOT EXISTS wealth_savings_plans (
+  id               TEXT PRIMARY KEY,
+  user_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name             TEXT NOT NULL,
+  amount           REAL NOT NULL,
+  interval         TEXT NOT NULL DEFAULT 'MONTHLY' CHECK (interval IN ('MONTHLY','QUARTERLY','YEARLY')),
+  start_date       TEXT NOT NULL,
+  end_date         TEXT,
+  target_asset_id  TEXT NOT NULL REFERENCES wealth_assets(id) ON DELETE CASCADE,
+  notes            TEXT,
+  anchor_date      TEXT,
+  anchor_quantity  REAL,
+  created_at       TEXT NOT NULL,
+  updated_at       TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wealth_savings_plans_user ON wealth_savings_plans(user_id);
+CREATE INDEX IF NOT EXISTS idx_wealth_savings_plans_asset ON wealth_savings_plans(target_asset_id);
+
+CREATE TABLE IF NOT EXISTS wealth_savings_goals (
+  id                    TEXT PRIMARY KEY,
+  user_id               TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name                  TEXT NOT NULL,
+  target_type           TEXT NOT NULL CHECK (target_type IN ('STOCK','ETF','CRYPTO','CASH','METAL','TAGESGELD','IMMOBILIE','OTHER')),
+  target_amount         REAL NOT NULL,
+  monthly_contribution  REAL NOT NULL DEFAULT 0,
+  unit_label            TEXT NOT NULL DEFAULT 'EUR',
+  created_at            TEXT NOT NULL,
+  updated_at            TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wealth_savings_goals_user ON wealth_savings_goals(user_id);
+
+CREATE TABLE IF NOT EXISTS wealth_price_history (
+  id          TEXT PRIMARY KEY,
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  asset_id    TEXT NOT NULL REFERENCES wealth_assets(id) ON DELETE CASCADE,
+  date        TEXT NOT NULL,
+  price       REAL NOT NULL,
+  created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wealth_price_history_asset ON wealth_price_history(asset_id, date);
+
+-- Rotation cursor for batched live price refreshes (one row per user+kind).
+CREATE TABLE IF NOT EXISTS wealth_price_cursors (
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind        TEXT NOT NULL CHECK (kind IN ('stocks','crypto')),
+  cursor      INTEGER NOT NULL DEFAULT 0,
+  updated_at  TEXT NOT NULL,
+  PRIMARY KEY (user_id, kind)
+);
+
+CREATE TABLE IF NOT EXISTS wealth_net_worth_snapshots (
+  id              TEXT PRIMARY KEY,
+  user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  date            TEXT NOT NULL,
+  net_worth       REAL NOT NULL,
+  total_debts     REAL NOT NULL DEFAULT 0,
+  breakdown_json  TEXT NOT NULL,
+  UNIQUE(user_id, date)
+);
+CREATE INDEX IF NOT EXISTS idx_wealth_net_worth_snapshots_user ON wealth_net_worth_snapshots(user_id, date);
+
+CREATE TABLE IF NOT EXISTS wealth_expenses (
+  id            TEXT PRIMARY KEY,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  date          TEXT NOT NULL,
+  amount        REAL NOT NULL,
+  category      TEXT NOT NULL DEFAULT 'Sonstiges',
+  type          TEXT NOT NULL CHECK (type IN ('INCOME','EXPENSE')),
+  description   TEXT NOT NULL,
+  is_recurring  INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wealth_expenses_user ON wealth_expenses(user_id, date);

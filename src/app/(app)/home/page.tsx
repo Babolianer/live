@@ -17,7 +17,7 @@ import { listDueSoon, countContracts } from "@/lib/contracts";
 import { listGoals } from "@/lib/goals";
 import { countUserMessages } from "@/lib/ai-messages";
 import { listPartnerTools } from "@/lib/partner-tools";
-import { getTotalWealth } from "@/lib/wealth";
+import { getTotalAssetsValue } from "@/lib/wealth-finance";
 import { countVehicles } from "@/lib/vehicles";
 import { countProperties } from "@/lib/properties";
 import { getHealthLogByDate } from "@/lib/health";
@@ -59,7 +59,7 @@ export default async function HomePage() {
     listGoals(user.id),
     countUserMessages(user.id),
     listPartnerTools(),
-    getTotalWealth(user.id),
+    getTotalAssetsValue(user.id),
     countVehicles(user.id),
     countProperties(user.id),
     getHealthLogByDate(user.id, today),

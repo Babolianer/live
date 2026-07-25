@@ -36,8 +36,8 @@ export async function buildTimeline(userId: string, limit = 60): Promise<Timelin
       `SELECT id, name, created_at, achieved_at FROM goals WHERE user_id = ?`,
       [userId]
     ),
-    query<{ id: string; name: string; value: number; created_at: string }[]>(
-      `SELECT id, name, value, created_at FROM wealth_entries WHERE user_id = ?`,
+    query<{ id: string; name: string; quantity: number; price_per_unit: number; created_at: string }[]>(
+      `SELECT id, name, quantity, price_per_unit, created_at FROM wealth_assets WHERE user_id = ?`,
       [userId]
     ),
     query<{ id: string; name: string; created_at: string }[]>(
@@ -101,7 +101,7 @@ export async function buildTimeline(userId: string, limit = 60): Promise<Timelin
       id: `wealth-${w.id}`,
       type: "wealth",
       label: "Vermögenswert erfasst",
-      detail: `${w.name} — ${w.value}€`,
+      detail: `${w.name} — ${Math.round(w.quantity * w.price_per_unit)}€`,
       href: "/wealth",
       at: w.created_at,
     });
