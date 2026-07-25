@@ -1,0 +1,101 @@
+import { cookies } from "next/headers";
+import { randomBytes, createHash } from "node:crypto";
+import bcrypt from "bcryptjs";
+import { query, newId, nowIso } from "@/lib/db";
+import { SESSION_COOKIE } from "@/lib/constants";
+
+const SESSION_DAYS = 30;
+
+export type SessionUser = {
+  id: string;
+  email: string;
+  name: string;
+};
+
+export async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, 12);
+}
+
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(password, hash);
+}
+
+function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+export async function createSession(userId: string): Promise<string> {
+  const token = randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+
+  await query(
+    `INSERT INTO sessions (id, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)`,
+    [hashToken(token), userId, expiresAt, nowIso()]
+  );
+
+  const cookieStore = await cookies();
+  cookieStore.set(SESSION_COOKIE, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: SESSION_DAYS * 24 * 60 * 60,
+  });
+
+  return token;
+}
+
+export async function destroySession(): Promise<void> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE)?.value;
+  if (token) {
+    await query(`DELETE FROM sessions WHERE id = ?`, [hashToken(token)]);
+  }
+  cookieStore.delete(SESSION_COOKIE);
+}
+
+export async function getSessionUser(): Promise<SessionUser | null> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE)?.value;
+  if (!token) return null;
+
+  const rows = await query<{ id: string; email: string; name: string; expires_at: string }[]>(
+    `SELECT u.id, u.email, u.name, s.expires_at
+     FROM sessions s
+     JOIN users u ON u.id = s.user_id
+     WHERE s.id = ?`,
+    [hashToken(token)]
+  );
+
+  const row = rows[0];
+  if (!row) return null;
+  if (new Date(row.expires_at).getTime() < Date.now()) return null;
+
+  return { id: row.id, email: row.email, name: row.name };
+}
+
+export async function requireSessionUser(): Promise<SessionUser> {
+  const user = await getSessionUser();
+  if (!user) {
+    throw new Error("UNAUTHENTICATED");
+  }
+  return user;
+}
+
+export async function createUser(email: string, password: string, name: string) {
+  const id = newId();
+  const passwordHash = await hashPassword(password);
+  await query(
+    `INSERT INTO users (id, email, password_hash, name, created_at) VALUES (?, ?, ?, ?, ?)`,
+    [id, email.toLowerCase().trim(), passwordHash, name.trim(), nowIso()]
+  );
+  return id;
+}
+
+export async function findUserByEmail(email: string) {
+  const rows = await query<{ id: string; email: string; password_hash: string; name: string }[]>(
+    `SELECT id, email, password_hash, name FROM users WHERE email = ?`,
+    [email.toLowerCase().trim()]
+  );
+  return rows[0] ?? null;
+}

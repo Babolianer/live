@@ -1,26 +1,89 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f6f6f4;
+  --surface: #ffffff;
+  --surface-muted: #eeeeec;
+  --foreground: #14141a;
+  --foreground-muted: #6b6b76;
+  --border: #e4e4e1;
+  --accent: #6c5ce7;
+  --accent-foreground: #ffffff;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --radius: 16px;
+}
+
+:root[data-theme="dark"] {
+  --background: #0b0b12;
+  --surface: #15151f;
+  --surface-muted: #1c1c28;
+  --foreground: #f4f4f6;
+  --foreground-muted: #9797a6;
+  --border: #262633;
+  --accent: #8b7cf6;
+  --accent-foreground: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #0b0b12;
+    --surface: #15151f;
+    --surface-muted: #1c1c28;
+    --foreground: #f4f4f6;
+    --foreground-muted: #9797a6;
+    --border: #262633;
+    --accent: #8b7cf6;
+    --accent-foreground: #ffffff;
+  }
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --radius-life: var(--radius);
+  --font-heading: var(--font-space-grotesk);
+  --font-sans: var(--font-inter);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-color: var(--border);
+}
+
+html,
+body {
+  height: 100%;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading), var(--font-sans), system-ui, sans-serif;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 8px;
 }
