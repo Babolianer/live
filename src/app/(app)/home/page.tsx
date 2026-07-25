@@ -12,8 +12,11 @@ import { requireSessionUser } from "@/lib/auth";
 import { countDocuments } from "@/lib/documents";
 import { listDueSoon, countContracts } from "@/lib/contracts";
 import { listGoals } from "@/lib/goals";
+import { countUserMessages } from "@/lib/ai-messages";
+import { listPartnerTools } from "@/lib/partner-tools";
 import { categoryLabel, categoryColor } from "@/lib/category-style";
 import { Card } from "@/components/ui/card";
+import { OnboardingChecklist } from "@/components/onboarding/onboarding-checklist";
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -24,13 +27,33 @@ function greeting(): string {
 
 export default async function HomePage() {
   const user = await requireSessionUser();
-  const [documentCount, contractCount, dueSoon, goals] = await Promise.all([
-    countDocuments(user.id),
-    countContracts(user.id),
-    listDueSoon(user.id, 30),
-    listGoals(user.id),
-  ]);
+  const [documentCount, contractCount, dueSoon, goals, aiMessageCount, partnerTools] =
+    await Promise.all([
+      countDocuments(user.id),
+      countContracts(user.id),
+      listDueSoon(user.id, 30),
+      listGoals(user.id),
+      countUserMessages(user.id),
+      listPartnerTools(),
+    ]);
   const openGoals = goals.filter((g) => !g.achieved_at).slice(0, 3);
+
+  const onboardingSteps = [
+    {
+      label: "Erstes Dokument hochladen",
+      done: documentCount > 0,
+      href: "/documents",
+      cta: "Hochladen",
+    },
+    {
+      label: "Ersten Vertrag anlegen",
+      done: contractCount > 0,
+      href: "/contracts",
+      cta: "Anlegen",
+    },
+    { label: "Erstes Ziel setzen", done: goals.length > 0, href: "/goals", cta: "Setzen" },
+    { label: "Ask LIFE etwas fragen", done: aiMessageCount > 0, href: "/ai", cta: "Fragen" },
+  ];
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
@@ -42,6 +65,14 @@ export default async function HomePage() {
           Hier ist dein Überblick über Dokumente, Verträge und Ziele.
         </p>
       </div>
+
+      {!user.onboardingDismissed && (
+        <OnboardingChecklist
+          steps={onboardingSteps}
+          isAdmin={user.role === "admin"}
+          partnerToolCount={partnerTools.filter((t) => t.enabled === 1).length}
+        />
+      )}
 
       <Link href="/ai">
         <Card className="flex items-center gap-4 bg-accent text-accent-foreground hover:opacity-90">

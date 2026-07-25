@@ -15,6 +15,7 @@ export type SessionUser = {
   email: string;
   name: string;
   role: UserRole;
+  onboardingDismissed: boolean;
 };
 
 export async function hashPassword(password: string): Promise<string> {
@@ -69,9 +70,16 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   if (!token) return null;
 
   const rows = await query<
-    { id: string; email: string; name: string; role: UserRole; expires_at: string }[]
+    {
+      id: string;
+      email: string;
+      name: string;
+      role: UserRole;
+      onboarding_dismissed: number;
+      expires_at: string;
+    }[]
   >(
-    `SELECT u.id, u.email, u.name, u.role, s.expires_at
+    `SELECT u.id, u.email, u.name, u.role, u.onboarding_dismissed, s.expires_at
      FROM sessions s
      JOIN users u ON u.id = s.user_id
      WHERE s.id = ?`,
@@ -82,7 +90,13 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   if (!row) return null;
   if (new Date(row.expires_at).getTime() < Date.now()) return null;
 
-  return { id: row.id, email: row.email, name: row.name, role: row.role };
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    role: row.role,
+    onboardingDismissed: row.onboarding_dismissed === 1,
+  };
 }
 
 export async function requireSessionUser(): Promise<SessionUser> {

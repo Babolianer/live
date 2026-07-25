@@ -16,6 +16,14 @@ export async function listMessages(userId: string, limit = 40) {
   return rows.reverse();
 }
 
+export async function countUserMessages(userId: string): Promise<number> {
+  const rows = await query<{ count: number }[]>(
+    `SELECT COUNT(*) as count FROM ai_messages WHERE user_id = ? AND role = 'user'`,
+    [userId]
+  );
+  return rows[0]?.count ?? 0;
+}
+
 export async function insertMessage(
   userId: string,
   role: "user" | "assistant",

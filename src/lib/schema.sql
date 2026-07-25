@@ -85,6 +85,7 @@ CREATE INDEX IF NOT EXISTS idx_goals_user ON goals(user_id);
 -- Schema evolution: ALTER statements are safe to re-run (the migrate script
 -- skips "duplicate column" errors), so this file stays a single source of truth.
 ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user','admin'));
+ALTER TABLE users ADD COLUMN onboarding_dismissed INTEGER NOT NULL DEFAULT 0;
 
 -- Admin-configured comparison/affiliate deep-links (e.g. Check24), shown to
 -- users on contracts in a matching category. No fake data: this table stays
