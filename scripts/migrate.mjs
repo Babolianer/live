@@ -73,7 +73,36 @@ async function main() {
     }
   }
   console.log(`Schema angewendet (${applied}/${statements.length} Statements ausgeführt).`);
+
+  await backfillConversations(client);
+
   client.close();
+}
+
+// One-time, idempotent backfill: any ai_messages row without a
+// conversation_id (from before multi-conversation chat existed) gets
+// grouped into a single conversation per user, preserving real chat
+// history instead of dropping it.
+async function backfillConversations(client) {
+  const orphans = await client.execute(
+    `SELECT DISTINCT user_id FROM ai_messages WHERE conversation_id IS NULL`
+  );
+  if (orphans.rows.length === 0) return;
+
+  for (const row of orphans.rows) {
+    const userId = row.user_id;
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await client.execute({
+      sql: `INSERT INTO ai_conversations (id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+      args: [id, userId, "Erster Chat", now, now],
+    });
+    await client.execute({
+      sql: `UPDATE ai_messages SET conversation_id = ? WHERE user_id = ? AND conversation_id IS NULL`,
+      args: [id, userId],
+    });
+    console.log(`Bestehende Chat-Nachrichten für Nutzer ${userId} einer neuen Unterhaltung zugeordnet.`);
+  }
 }
 
 main().catch((err) => {

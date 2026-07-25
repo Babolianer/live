@@ -17,6 +17,7 @@ import { listPartnerTools } from "@/lib/partner-tools";
 import { categoryLabel, categoryColor } from "@/lib/category-style";
 import { Card } from "@/components/ui/card";
 import { OnboardingChecklist } from "@/components/onboarding/onboarding-checklist";
+import { HomeChatStarter } from "@/components/home/home-chat-starter";
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -66,6 +67,8 @@ export default async function HomePage() {
         </p>
       </div>
 
+      <HomeChatStarter />
+
       {!user.onboardingDismissed && (
         <OnboardingChecklist
           steps={onboardingSteps}
@@ -73,20 +76,6 @@ export default async function HomePage() {
           partnerToolCount={partnerTools.filter((t) => t.enabled === 1).length}
         />
       )}
-
-      <Link href="/ai">
-        <Card className="flex items-center gap-4 bg-accent text-accent-foreground hover:opacity-90">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/15">
-            <Sparkles size={22} />
-          </div>
-          <div>
-            <p className="font-heading font-semibold">Ask LIFE</p>
-            <p className="text-sm opacity-90">
-              Stell eine Frage zu deinen Dokumenten oder Verträgen.
-            </p>
-          </div>
-        </Card>
-      </Link>
 
       <div className="grid grid-cols-3 gap-4">
         <Link href="/documents">

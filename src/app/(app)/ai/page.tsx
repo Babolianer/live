@@ -1,20 +1,11 @@
+import { redirect } from "next/navigation";
 import { requireSessionUser } from "@/lib/auth";
-import { listMessages } from "@/lib/ai-messages";
-import { Chat } from "@/components/ai/chat";
+import { listConversations, createConversation } from "@/lib/ai-conversations";
 
-export default async function AiPage() {
+export default async function AiIndexPage() {
   const user = await requireSessionUser();
-  const messages = await listMessages(user.id);
+  const conversations = await listConversations(user.id);
 
-  return (
-    <div className="mx-auto flex h-full max-w-2xl flex-col">
-      <div className="mb-2">
-        <h1 className="font-heading text-2xl font-semibold">Ask LIFE</h1>
-        <p className="text-sm text-foreground-muted">
-          Deine zentrale Anlaufstelle für Fragen zu Dokumenten und Verträgen.
-        </p>
-      </div>
-      <Chat initialMessages={messages} />
-    </div>
-  );
+  const targetId = conversations[0]?.id ?? (await createConversation(user.id));
+  redirect(`/ai/${targetId}`);
 }

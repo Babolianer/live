@@ -12,7 +12,7 @@ type Props = {
     state: ContractFormState,
     formData: FormData
   ) => Promise<ContractFormState>;
-  contract?: ContractRow;
+  contract?: Partial<ContractRow>;
   documents: { id: string; original_name: string }[];
   onDone?: () => void;
   submitLabel?: string;

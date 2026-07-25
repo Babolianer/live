@@ -101,3 +101,19 @@ CREATE TABLE IF NOT EXISTS partner_tools (
   updated_at          TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_partner_tools_category ON partner_tools(category);
+
+CREATE TABLE IF NOT EXISTS ai_conversations (
+  id          TEXT PRIMARY KEY,
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title       TEXT NOT NULL DEFAULT 'Neuer Chat',
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ai_conversations_user ON ai_conversations(user_id, updated_at);
+
+-- Multi-conversation chat + attachments. Existing rows keep conversation_id
+-- NULL until scripts/migrate.mjs backfills a conversation per user (real
+-- chat history is never dropped).
+ALTER TABLE ai_messages ADD COLUMN conversation_id TEXT REFERENCES ai_conversations(id) ON DELETE CASCADE;
+ALTER TABLE ai_messages ADD COLUMN attachments TEXT;
+CREATE INDEX IF NOT EXISTS idx_ai_messages_conversation ON ai_messages(conversation_id, created_at);

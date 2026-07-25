@@ -83,3 +83,11 @@ export async function readDocumentFile(
 export async function deleteDocumentFile(storedPath: string): Promise<void> {
   await del(storedPath).catch(() => undefined);
 }
+
+/** Reads a stored image back as a base64 data URL, for sending to a vision model. */
+export async function readImageAsDataUrl(storedPath: string, mimeType: string): Promise<string | null> {
+  const file = await readDocumentFile(storedPath);
+  if (!file) return null;
+  const buffer = Buffer.from(await new Response(file.stream).arrayBuffer());
+  return `data:${mimeType};base64,${buffer.toString("base64")}`;
+}
