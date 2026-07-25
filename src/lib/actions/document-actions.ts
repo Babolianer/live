@@ -43,7 +43,16 @@ export async function uploadDocumentAction(
     };
   }
 
-  const storedPath = await saveDocumentFile(user.id, file.name, buffer, file.type);
+  let storedPath: string;
+  try {
+    storedPath = await saveDocumentFile(user.id, file.name, buffer, file.type);
+  } catch {
+    return {
+      error:
+        "Dateispeicher ist gerade nicht erreichbar (Vercel Blob nicht konfiguriert?). Bitte später erneut versuchen.",
+    };
+  }
+
   const extractedText =
     file.type === "application/pdf" ? await extractTextFromPdf(buffer) : null;
 

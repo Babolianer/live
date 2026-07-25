@@ -5,6 +5,11 @@ export const CATEGORY_LABELS: Record<string, string> = {
   mobilfunk: "Mobilfunk",
   fitness: "Fitness",
   sonstiges: "Sonstiges",
+  reise: "Reise",
+  immobilie: "Immobilie",
+  vermoegen: "Vermögen",
+  fahrzeug: "Fahrzeug",
+  bildung: "Bildung",
 };
 
 export const CATEGORY_COLORS: Record<string, string> = {
@@ -14,6 +19,11 @@ export const CATEGORY_COLORS: Record<string, string> = {
   mobilfunk: "bg-success/15 text-success",
   fitness: "bg-danger/15 text-danger",
   sonstiges: "bg-surface-muted text-foreground-muted",
+  reise: "bg-accent/15 text-accent",
+  immobilie: "bg-warning/15 text-warning",
+  vermoegen: "bg-success/15 text-success",
+  fahrzeug: "bg-danger/15 text-danger",
+  bildung: "bg-foreground-muted/15 text-foreground-muted",
 };
 
 export function categoryLabel(category: string): string {

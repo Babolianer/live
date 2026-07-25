@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import { Sparkles, Lock } from "lucide-react";
-import { primaryNav, comingSoonNav } from "@/lib/nav";
+import { sidebarNav, comingSoonNav } from "@/lib/nav";
 import { iconMap } from "@/components/icon-map";
 import { LogoutButton } from "@/components/app-shell/logout-button";
 import type { SessionUser } from "@/lib/auth";
@@ -25,7 +25,7 @@ export function Sidebar({ user }: { user: SessionUser }) {
       </div>
 
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">
-        {primaryNav.map((item) => {
+        {sidebarNav.map((item) => {
           const Icon = iconMap[item.icon];
           const active = pathname === item.href || pathname.startsWith(item.href + "/");
           return (

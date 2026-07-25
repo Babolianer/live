@@ -66,3 +66,18 @@ CREATE TABLE IF NOT EXISTS login_attempts (
   created_at  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_login_attempts_email ON login_attempts(email, created_at);
+
+CREATE TABLE IF NOT EXISTS goals (
+  id              TEXT PRIMARY KEY,
+  user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name            TEXT NOT NULL,
+  category        TEXT NOT NULL DEFAULT 'sonstiges',
+  target_amount   REAL NOT NULL,
+  current_amount  REAL NOT NULL DEFAULT 0,
+  target_date     TEXT,
+  notes           TEXT,
+  achieved_at     TEXT,
+  created_at      TEXT NOT NULL,
+  updated_at      TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_goals_user ON goals(user_id);
