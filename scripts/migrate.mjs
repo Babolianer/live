@@ -54,8 +54,25 @@ async function main() {
     .map((s) => s.trim())
     .filter(Boolean);
 
-  await client.migrate(statements);
-  console.log(`Schema angewendet (${statements.length} Statements).`);
+  // Run each statement individually (not in one batch transaction) so a
+  // re-run is safe even with non-idempotent statements like `ALTER TABLE
+  // ADD COLUMN` — one already-applied ALTER shouldn't roll back or block
+  // every other statement in the file.
+  let applied = 0;
+  for (const statement of statements) {
+    try {
+      await client.execute(statement);
+      applied++;
+    } catch (err) {
+      const isDuplicateColumn = /duplicate column name/i.test(err.message);
+      if (isDuplicateColumn) {
+        console.log(`Übersprungen (Spalte existiert bereits): ${statement.slice(0, 60)}...`);
+        continue;
+      }
+      throw err;
+    }
+  }
+  console.log(`Schema angewendet (${applied}/${statements.length} Statements ausgeführt).`);
   client.close();
 }
 

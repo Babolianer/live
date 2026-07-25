@@ -25,7 +25,10 @@ export function Sidebar({ user }: { user: SessionUser }) {
       </div>
 
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">
-        {sidebarNav.map((item) => {
+        {(user.role === "admin"
+          ? [...sidebarNav, { href: "/admin", label: "Admin", icon: "cog" }]
+          : sidebarNav
+        ).map((item) => {
           const Icon = iconMap[item.icon];
           const active = pathname === item.href || pathname.startsWith(item.href + "/");
           return (

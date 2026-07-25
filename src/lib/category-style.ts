@@ -10,6 +10,7 @@ export const CATEGORY_LABELS: Record<string, string> = {
   vermoegen: "Vermögen",
   fahrzeug: "Fahrzeug",
   bildung: "Bildung",
+  alle: "Alle Kategorien",
 };
 
 export const CATEGORY_COLORS: Record<string, string> = {

@@ -9,6 +9,7 @@ import {
   Clock,
   Car,
   Building2,
+  Cog,
   type LucideIcon,
 } from "lucide-react";
 
@@ -23,4 +24,5 @@ export const iconMap: Record<string, LucideIcon> = {
   clock: Clock,
   car: Car,
   building: Building2,
+  cog: Cog,
 };

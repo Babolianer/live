@@ -8,10 +8,13 @@ const SESSION_DAYS = 30;
 const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_WINDOW_MINUTES = 15;
 
+export type UserRole = "user" | "admin";
+
 export type SessionUser = {
   id: string;
   email: string;
   name: string;
+  role: UserRole;
 };
 
 export async function hashPassword(password: string): Promise<string> {
@@ -65,8 +68,10 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) return null;
 
-  const rows = await query<{ id: string; email: string; name: string; expires_at: string }[]>(
-    `SELECT u.id, u.email, u.name, s.expires_at
+  const rows = await query<
+    { id: string; email: string; name: string; role: UserRole; expires_at: string }[]
+  >(
+    `SELECT u.id, u.email, u.name, u.role, s.expires_at
      FROM sessions s
      JOIN users u ON u.id = s.user_id
      WHERE s.id = ?`,
@@ -77,13 +82,21 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   if (!row) return null;
   if (new Date(row.expires_at).getTime() < Date.now()) return null;
 
-  return { id: row.id, email: row.email, name: row.name };
+  return { id: row.id, email: row.email, name: row.name, role: row.role };
 }
 
 export async function requireSessionUser(): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user) {
     throw new Error("UNAUTHENTICATED");
+  }
+  return user;
+}
+
+export async function requireAdmin(): Promise<SessionUser> {
+  const user = await requireSessionUser();
+  if (user.role !== "admin") {
+    throw new Error("FORBIDDEN");
   }
   return user;
 }

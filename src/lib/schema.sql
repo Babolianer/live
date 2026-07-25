@@ -81,3 +81,22 @@ CREATE TABLE IF NOT EXISTS goals (
   updated_at      TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_goals_user ON goals(user_id);
+
+-- Schema evolution: ALTER statements are safe to re-run (the migrate script
+-- skips "duplicate column" errors), so this file stays a single source of truth.
+ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user','admin'));
+
+-- Admin-configured comparison/affiliate deep-links (e.g. Check24), shown to
+-- users on contracts in a matching category. No fake data: this table stays
+-- empty (features unavailable) until an admin actually fills it in.
+CREATE TABLE IF NOT EXISTS partner_tools (
+  id                  TEXT PRIMARY KEY,
+  category            TEXT NOT NULL,
+  provider_name       TEXT NOT NULL,
+  affiliate_id        TEXT,
+  deep_link_template  TEXT NOT NULL, -- may contain {affiliate_id}, replaced at render time
+  enabled             INTEGER NOT NULL DEFAULT 1,
+  created_at          TEXT NOT NULL,
+  updated_at          TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_partner_tools_category ON partner_tools(category);
