@@ -9,6 +9,40 @@ export const ALLOWED_MIME_TYPES = [
   "image/heic",
 ];
 
+/**
+ * Checks the file's actual byte signature against the MIME type the client
+ * claims, so a renamed/relabeled file can't slip past the upload filter.
+ * HEIC's signature sits inside a variable-length ISO-BMFF box, so it gets a
+ * looser (but still real) check than the fixed-offset formats.
+ */
+export function matchesFileSignature(buffer: Buffer, mimeType: string): boolean {
+  const bytes = buffer.subarray(0, 16);
+  switch (mimeType) {
+    case "application/pdf":
+      return bytes.subarray(0, 4).toString("ascii") === "%PDF";
+    case "image/png":
+      return bytes.subarray(0, 8).equals(
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+      );
+    case "image/jpeg":
+      return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    case "image/webp":
+      return (
+        bytes.subarray(0, 4).toString("ascii") === "RIFF" &&
+        bytes.subarray(8, 12).toString("ascii") === "WEBP"
+      );
+    case "image/heic": {
+      const brand = buffer.subarray(8, 12).toString("ascii");
+      return (
+        bytes.subarray(4, 8).toString("ascii") === "ftyp" &&
+        ["heic", "heix", "hevc", "hevx", "mif1", "msf1"].includes(brand)
+      );
+    }
+    default:
+      return false;
+  }
+}
+
 function safeFileName(originalName: string): string {
   const ext = originalName.includes(".")
     ? originalName.slice(originalName.lastIndexOf(".")).slice(0, 20)

@@ -5,6 +5,7 @@ import { requireSessionUser } from "@/lib/auth";
 import {
   ALLOWED_MIME_TYPES,
   MAX_UPLOAD_BYTES,
+  matchesFileSignature,
   saveDocumentFile,
   deleteDocumentFile,
 } from "@/lib/storage";
@@ -36,6 +37,12 @@ export async function uploadDocumentAction(
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
+  if (!matchesFileSignature(buffer, file.type)) {
+    return {
+      error: "Der Dateiinhalt passt nicht zum angegebenen Dateityp. Bitte die Originaldatei hochladen.",
+    };
+  }
+
   const storedPath = await saveDocumentFile(user.id, file.name, buffer, file.type);
   const extractedText =
     file.type === "application/pdf" ? await extractTextFromPdf(buffer) : null;

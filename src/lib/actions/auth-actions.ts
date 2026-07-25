@@ -3,10 +3,14 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
+  clearLoginAttempts,
   createSession,
   createUser,
   destroySession,
+  DUMMY_PASSWORD_HASH,
   findUserByEmail,
+  isLoginLocked,
+  recordFailedLogin,
   verifyPassword,
 } from "@/lib/auth";
 
@@ -35,16 +39,26 @@ export async function signInAction(
     return { error: parsed.error.issues[0]?.message ?? "Ungültige Eingabe." };
   }
 
+  if (await isLoginLocked(parsed.data.email)) {
+    return {
+      error: "Zu viele fehlgeschlagene Versuche. Bitte warte 15 Minuten und versuche es erneut.",
+    };
+  }
+
   const user = await findUserByEmail(parsed.data.email);
-  if (!user) {
+  // Always run bcrypt, even for an unknown email, so response time doesn't
+  // leak whether an account exists (dummy hash costs the same to compare).
+  const valid = await verifyPassword(
+    parsed.data.password,
+    user?.password_hash ?? DUMMY_PASSWORD_HASH
+  );
+
+  if (!user || !valid) {
+    await recordFailedLogin(parsed.data.email);
     return { error: "E-Mail oder Passwort ist falsch." };
   }
 
-  const valid = await verifyPassword(parsed.data.password, user.password_hash);
-  if (!valid) {
-    return { error: "E-Mail oder Passwort ist falsch." };
-  }
-
+  await clearLoginAttempts(parsed.data.email);
   await createSession(user.id);
   redirect("/home");
 }

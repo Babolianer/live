@@ -43,7 +43,13 @@ async function main() {
   const client = createClient({ url, authToken });
 
   const sql = await readFile(schemaPath, "utf8");
-  const statements = sql
+  // Strip full-line "--" comments before splitting on ";" — a semicolon inside
+  // a comment (e.g. prose text) would otherwise be mistaken for a statement end.
+  const withoutComments = sql
+    .split("\n")
+    .filter((line) => !line.trim().startsWith("--"))
+    .join("\n");
+  const statements = withoutComments
     .split(";")
     .map((s) => s.trim())
     .filter(Boolean);

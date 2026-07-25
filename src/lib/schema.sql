@@ -57,3 +57,12 @@ CREATE TABLE IF NOT EXISTS ai_messages (
   created_at  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_ai_messages_user ON ai_messages(user_id, created_at);
+
+-- Brute-force protection for login: one row per failed attempt, login gets
+-- blocked while there are too many recent rows for that email.
+CREATE TABLE IF NOT EXISTS login_attempts (
+  id          TEXT PRIMARY KEY,
+  email       TEXT NOT NULL,
+  created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_email ON login_attempts(email, created_at);

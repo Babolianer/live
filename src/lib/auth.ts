@@ -5,6 +5,8 @@ import { query, newId, nowIso } from "@/lib/db";
 import { SESSION_COOKIE } from "@/lib/constants";
 
 const SESSION_DAYS = 30;
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_WINDOW_MINUTES = 15;
 
 export type SessionUser = {
   id: string;
@@ -19,6 +21,10 @@ export async function hashPassword(password: string): Promise<string> {
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
   return bcrypt.compare(password, hash);
 }
+
+// Valid-format bcrypt hash with no matching password — used to keep login
+// timing constant when the email doesn't exist (avoids account enumeration).
+export const DUMMY_PASSWORD_HASH = bcrypt.hashSync("no-such-account", 12);
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -98,4 +104,25 @@ export async function findUserByEmail(email: string) {
     [email.toLowerCase().trim()]
   );
   return rows[0] ?? null;
+}
+
+export async function isLoginLocked(email: string): Promise<boolean> {
+  const since = new Date(Date.now() - LOGIN_WINDOW_MINUTES * 60 * 1000).toISOString();
+  const rows = await query<{ count: number }[]>(
+    `SELECT COUNT(*) as count FROM login_attempts WHERE email = ? AND created_at > ?`,
+    [email.toLowerCase().trim(), since]
+  );
+  return (rows[0]?.count ?? 0) >= LOGIN_MAX_ATTEMPTS;
+}
+
+export async function recordFailedLogin(email: string): Promise<void> {
+  await query(`INSERT INTO login_attempts (id, email, created_at) VALUES (?, ?, ?)`, [
+    newId(),
+    email.toLowerCase().trim(),
+    nowIso(),
+  ]);
+}
+
+export async function clearLoginAttempts(email: string): Promise<void> {
+  await query(`DELETE FROM login_attempts WHERE email = ?`, [email.toLowerCase().trim()]);
 }
