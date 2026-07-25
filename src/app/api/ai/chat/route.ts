@@ -13,6 +13,7 @@ import { runChat, type ChatMessage, type ContentPart, type ToolDefinition } from
 import { CATEGORIES } from "@/lib/contract-constants";
 import { GOAL_CATEGORIES } from "@/lib/goal-constants";
 import { WEALTH_CATEGORIES } from "@/lib/wealth-constants";
+import { ENTITY_HANDLERS, ENTITY_TYPES, type EntityType } from "@/lib/entity-registry";
 
 const VISION_MODEL = process.env.OPENROUTER_VISION_MODEL || "google/gemma-4-31b-it:free";
 
@@ -45,13 +46,13 @@ const PROPOSAL_TOOLS: Record<
             cancellationDeadline: { type: "string", description: "Kündigungsfrist YYYY-MM-DD, falls bekannt" },
             notes: { type: "string" },
           },
-          required: ["name", "category", "billingCycle"],
+          required: ["name"],
         },
       },
     },
     schema: z.object({
       name: z.string().trim().min(1),
-      category: z.string().trim().min(1),
+      category: z.string().trim().min(1).default("sonstiges"),
       amount: z.coerce.number().nonnegative().nullable().optional(),
       billingCycle: z.enum(["monthly", "yearly", "one_time"]).default("monthly"),
       contractEnd: z.preprocess(emptyToNull, z.string().nullable().optional()),
@@ -77,14 +78,14 @@ const PROPOSAL_TOOLS: Record<
             targetDate: { type: "string", description: "Zieldatum YYYY-MM-DD, falls bekannt" },
             notes: { type: "string" },
           },
-          required: ["name", "category", "targetAmount"],
+          required: ["name"],
         },
       },
     },
     schema: z.object({
       name: z.string().trim().min(1),
-      category: z.string().trim().min(1),
-      targetAmount: z.coerce.number().positive(),
+      category: z.string().trim().min(1).default("sonstiges"),
+      targetAmount: z.preprocess(emptyToNull, z.coerce.number().positive().nullable().optional()),
       currentAmount: z.coerce.number().nonnegative().default(0),
       targetDate: z.preprocess(emptyToNull, z.string().nullable().optional()),
       notes: z.preprocess(emptyToNull, z.string().nullable().optional()),
@@ -106,14 +107,14 @@ const PROPOSAL_TOOLS: Record<
             value: { type: "number", description: "Aktueller Wert in Euro" },
             notes: { type: "string" },
           },
-          required: ["name", "category", "value"],
+          required: ["name"],
         },
       },
     },
     schema: z.object({
       name: z.string().trim().min(1),
-      category: z.string().trim().min(1),
-      value: z.coerce.number(),
+      category: z.string().trim().min(1).default("sonstiges"),
+      value: z.preprocess(emptyToNull, z.coerce.number().nullable().optional()),
       notes: z.preprocess(emptyToNull, z.string().nullable().optional()),
     }),
   },
@@ -210,7 +211,53 @@ const PROPOSAL_TOOLS: Record<
   },
 };
 
-const ALL_TOOL_DEFINITIONS = Object.values(PROPOSAL_TOOLS).map((t) => t.definition);
+const UPDATE_ENTITY_TOOL: ToolDefinition = {
+  type: "function",
+  function: {
+    name: "update_entity",
+    description:
+      "Ändert einen bestehenden Eintrag (Vertrag, Ziel, Vermögenswert, Fahrzeug, Immobilie oder Gesundheits-Eintrag). Nur die zu ändernden Felder in 'changes' angeben, alles andere bleibt wie es ist. Der Nutzer sieht die Änderung in einem Formular und muss aktiv bestätigen.",
+    parameters: {
+      type: "object",
+      properties: {
+        entityType: { type: "string", enum: [...ENTITY_TYPES] },
+        id: { type: "string", description: "Die [id: ...] des Eintrags aus dem Kontext" },
+        changes: {
+          type: "object",
+          description: "Nur die geänderten Felder, in denselben Feldnamen wie beim Anlegen (z. B. value, amount, category, inspectionDue, ...).",
+        },
+      },
+      required: ["entityType", "id", "changes"],
+    },
+  },
+};
+
+const DELETE_ENTITY_TOOL: ToolDefinition = {
+  type: "function",
+  function: {
+    name: "delete_entity",
+    description:
+      "Löscht einen bestehenden Eintrag (Vertrag, Ziel, Vermögenswert, Fahrzeug, Immobilie oder Gesundheits-Eintrag). Der Nutzer muss aktiv bestätigen.",
+    parameters: {
+      type: "object",
+      properties: {
+        entityType: { type: "string", enum: [...ENTITY_TYPES] },
+        id: { type: "string", description: "Die [id: ...] des Eintrags aus dem Kontext" },
+      },
+      required: ["entityType", "id"],
+    },
+  },
+};
+
+const ALL_TOOL_DEFINITIONS = [
+  ...Object.values(PROPOSAL_TOOLS).map((t) => t.definition),
+  UPDATE_ENTITY_TOOL,
+  DELETE_ENTITY_TOOL,
+];
+
+function isEntityType(value: unknown): value is EntityType {
+  return typeof value === "string" && (ENTITY_TYPES as string[]).includes(value);
+}
 
 export async function POST(request: Request) {
   const user = await getSessionUser();
@@ -305,10 +352,53 @@ export async function POST(request: Request) {
       model: hasImage ? VISION_MODEL : undefined,
     });
 
-    const toolConfig =
-      result.kind === "tool_call" ? PROPOSAL_TOOLS[result.toolCall.function.name] : undefined;
+    const calledName = result.kind === "tool_call" ? result.toolCall.function.name : null;
 
-    if (result.kind === "tool_call" && toolConfig) {
+    if (calledName === "update_entity" || calledName === "delete_entity") {
+      const args = JSON.parse((result as { toolCall: { function: { arguments: string } } }).toolCall.function.arguments);
+      const entityType = args.entityType;
+      const id = typeof args.id === "string" ? args.id : "";
+
+      if (!isEntityType(entityType) || !id) {
+        const text = "Ich konnte nicht eindeutig erkennen, welchen Eintrag du meinst.";
+        responsePayload = { type: "text", text };
+        assistantStorageContent = JSON.stringify({ type: "text", text });
+      } else {
+        const handler = ENTITY_HANDLERS[entityType];
+        const row = await handler.get(id, user.id);
+
+        if (!row) {
+          const text = "Diesen Eintrag konnte ich nicht finden — wurde er vielleicht schon gelöscht?";
+          responsePayload = { type: "text", text };
+          assistantStorageContent = JSON.stringify({ type: "text", text });
+        } else if (calledName === "delete_entity") {
+          const label = handler.label(row);
+          const text = result.kind === "tool_call" ? result.text?.trim() || `Soll ich "${label}" wirklich löschen?` : `Soll ich "${label}" wirklich löschen?`;
+          const proposal = { entityType, id, label };
+          responsePayload = { type: "delete_proposal", text, proposal };
+          assistantStorageContent = JSON.stringify({ type: "delete_proposal", text, proposal });
+        } else {
+          const proposeKey = `propose_${entityType}`;
+          const toolConfig = PROPOSAL_TOOLS[proposeKey];
+          const merged = { ...handler.toInput(row), ...(args.changes ?? {}) };
+          const parsed = toolConfig.schema.safeParse(merged);
+
+          if (parsed.success) {
+            const text =
+              result.text?.trim() ||
+              "Ich habe folgende Änderung vorbereitet — prüf sie kurz und passe sie bei Bedarf an:";
+            const proposal = { ...(parsed.data as object), id };
+            responsePayload = { type: toolConfig.proposalType, text, proposal };
+            assistantStorageContent = JSON.stringify({ type: toolConfig.proposalType, text, proposal });
+          } else {
+            const text = "Ich konnte die Änderung nicht sauber anwenden. Kannst du sie nochmal genauer beschreiben?";
+            responsePayload = { type: "text", text };
+            assistantStorageContent = JSON.stringify({ type: "text", text });
+          }
+        }
+      }
+    } else if (result.kind === "tool_call" && PROPOSAL_TOOLS[result.toolCall.function.name]) {
+      const toolConfig = PROPOSAL_TOOLS[result.toolCall.function.name];
       const args = JSON.parse(result.toolCall.function.arguments);
       const parsed = toolConfig.schema.safeParse(args);
 

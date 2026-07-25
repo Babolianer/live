@@ -4,13 +4,14 @@ import { useState } from "react";
 import { CheckCircle2, Target } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { GoalForm } from "@/components/goals/goal-form";
-import { createGoalAction } from "@/lib/actions/goal-actions";
+import { createGoalAction, updateGoalAction } from "@/lib/actions/goal-actions";
 import type { GoalRow } from "@/lib/goals";
 
 export type GoalProposal = {
+  id?: string;
   name: string;
   category: string;
-  targetAmount: number;
+  targetAmount?: number | null;
   currentAmount?: number;
   targetDate?: string | null;
   notes?: string | null;
@@ -19,13 +20,16 @@ export type GoalProposal = {
 export function GoalProposalCard({ proposal }: { proposal: GoalProposal }) {
   const [saved, setSaved] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const isUpdate = !!proposal.id;
 
   if (dismissed) return null;
   if (saved) {
     return (
       <Card className="flex items-center gap-2 border-success/30 bg-success/10 text-success">
         <CheckCircle2 size={18} />
-        <span className="text-sm font-medium">Ziel &quot;{proposal.name}&quot; wurde angelegt.</span>
+        <span className="text-sm font-medium">
+          Ziel &quot;{proposal.name}&quot; wurde {isUpdate ? "aktualisiert" : "angelegt"}.
+        </span>
       </Card>
     );
   }
@@ -33,7 +37,7 @@ export function GoalProposalCard({ proposal }: { proposal: GoalProposal }) {
   const draft: Partial<GoalRow> = {
     name: proposal.name,
     category: proposal.category as GoalRow["category"],
-    target_amount: proposal.targetAmount,
+    target_amount: proposal.targetAmount ?? undefined,
     current_amount: proposal.currentAmount ?? 0,
     target_date: proposal.targetDate ?? null,
     notes: proposal.notes ?? null,
@@ -43,13 +47,13 @@ export function GoalProposalCard({ proposal }: { proposal: GoalProposal }) {
     <Card>
       <div className="mb-3 flex items-center gap-2 text-sm font-medium text-accent">
         <Target size={16} />
-        Zielvorschlag — bitte prüfen und bestätigen
+        {isUpdate ? "Änderung" : "Zielvorschlag"} — bitte prüfen und bestätigen
       </div>
       <GoalForm
-        action={createGoalAction}
+        action={isUpdate ? updateGoalAction.bind(null, proposal.id!) : createGoalAction}
         goal={draft}
         onDone={() => setSaved(true)}
-        submitLabel="Ziel anlegen"
+        submitLabel={isUpdate ? "Änderungen speichern" : "Ziel anlegen"}
       />
       <button
         onClick={() => setDismissed(true)}

@@ -27,6 +27,17 @@ export type ChatResult =
   | { kind: "text"; text: string }
   | { kind: "tool_call"; toolCall: ToolCall; text: string | null };
 
+// If the configured model is temporarily unavailable/rate-limited (common for
+// free-tier OpenRouter models under shared load), we retry with these before
+// giving up. Order matters: biggest/most capable first.
+const FALLBACK_FREE_MODELS = [
+  "nvidia/nemotron-3-ultra-550b-a55b:free",
+  "openai/gpt-oss-20b:free",
+  "google/gemma-4-31b-it:free",
+];
+
+const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
+
 function requireApiKey(): string {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
@@ -44,37 +55,43 @@ function headers(apiKey: string) {
   };
 }
 
-/**
- * Single non-streaming completion, optionally with tool definitions. Used for
- * the main chat turn so we can reliably detect and act on a tool call before
- * deciding how to render the response (plain text vs. a proposal card).
- */
-export async function runChat(
-  messages: ChatMessage[],
-  options?: { tools?: ToolDefinition[]; model?: string }
-): Promise<ChatResult> {
-  const apiKey = requireApiKey();
-  const model = options?.model || process.env.OPENROUTER_MODEL || "nvidia/nemotron-3-ultra-550b-a55b:free";
+class RetryableError extends Error {}
 
+async function attemptChat(
+  model: string,
+  messages: ChatMessage[],
+  tools: ToolDefinition[] | undefined,
+  apiKey: string
+): Promise<ChatResult> {
   const response = await fetch(OPENROUTER_URL, {
     method: "POST",
     headers: headers(apiKey),
     body: JSON.stringify({
       model,
       messages,
-      ...(options?.tools ? { tools: options.tools, tool_choice: "auto" } : {}),
+      ...(tools ? { tools, tool_choice: "auto" } : {}),
     }),
   });
 
   if (!response.ok) {
     const text = await response.text().catch(() => "");
-    throw new Error(`OpenRouter-Anfrage fehlgeschlagen (${response.status}): ${text.slice(0, 300)}`);
+    const msg = `OpenRouter-Anfrage fehlgeschlagen (${response.status}) für Modell ${model}: ${text.slice(0, 300)}`;
+    if (RETRYABLE_STATUS.has(response.status)) throw new RetryableError(msg);
+    throw new Error(msg);
   }
 
   const data = await response.json();
+
+  if (data.error) {
+    const msg = `OpenRouter meldet einen Fehler für Modell ${model}: ${data.error.message ?? JSON.stringify(data.error)}`;
+    throw new RetryableError(msg);
+  }
+
   const message = data.choices?.[0]?.message;
   if (!message) {
-    throw new Error("OpenRouter hat keine Antwort geliefert.");
+    throw new RetryableError(
+      `OpenRouter hat für Modell ${model} keine verwertbare Antwort geliefert (leere choices).`
+    );
   }
 
   const toolCalls = message.tool_calls as
@@ -94,12 +111,47 @@ export async function runChat(
 }
 
 /**
+ * Single non-streaming completion, optionally with tool definitions. Used for
+ * the main chat turn so we can reliably detect and act on a tool call before
+ * deciding how to render the response (plain text vs. a proposal card).
+ *
+ * Retries with fallback free models on transient failures (rate limits,
+ * upstream errors, empty responses) so a single overloaded model doesn't
+ * take down the whole chat.
+ */
+export async function runChat(
+  messages: ChatMessage[],
+  options?: { tools?: ToolDefinition[]; model?: string }
+): Promise<ChatResult> {
+  const apiKey = requireApiKey();
+  const primaryModel =
+    options?.model || process.env.OPENROUTER_MODEL || FALLBACK_FREE_MODELS[0];
+  const modelsToTry = [primaryModel, ...FALLBACK_FREE_MODELS.filter((m) => m !== primaryModel)];
+
+  const errors: string[] = [];
+  for (const model of modelsToTry) {
+    try {
+      return await attemptChat(model, messages, options?.tools, apiKey);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push(msg);
+      if (!(err instanceof RetryableError)) throw err;
+      // otherwise fall through and try the next model
+    }
+  }
+
+  throw new Error(
+    `Alle KI-Modelle waren nicht erreichbar. Letzte Fehler:\n${errors.join("\n")}`
+  );
+}
+
+/**
  * Streams a chat completion from OpenRouter and yields text deltas as they arrive.
  * Kept for plain text-only turns without tool definitions.
  */
 export async function* streamChatCompletion(messages: ChatMessage[]): AsyncGenerator<string> {
   const apiKey = requireApiKey();
-  const model = process.env.OPENROUTER_MODEL || "nvidia/nemotron-3-ultra-550b-a55b:free";
+  const model = process.env.OPENROUTER_MODEL || FALLBACK_FREE_MODELS[0];
 
   const response = await fetch(OPENROUTER_URL, {
     method: "POST",

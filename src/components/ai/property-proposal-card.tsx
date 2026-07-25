@@ -4,9 +4,10 @@ import { useState } from "react";
 import { CheckCircle2, Building2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { PropertyForm } from "@/components/properties/property-form";
-import { createPropertyAction } from "@/lib/actions/property-actions";
+import { createPropertyAction, updatePropertyAction } from "@/lib/actions/property-actions";
 
 export type PropertyProposal = {
+  id?: string;
   name: string;
   address?: string | null;
   purchaseDate?: string | null;
@@ -17,6 +18,7 @@ export type PropertyProposal = {
 export function PropertyProposalCard({ proposal }: { proposal: PropertyProposal }) {
   const [saved, setSaved] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const isUpdate = !!proposal.id;
 
   if (dismissed) return null;
   if (saved) {
@@ -24,7 +26,7 @@ export function PropertyProposalCard({ proposal }: { proposal: PropertyProposal 
       <Card className="flex items-center gap-2 border-success/30 bg-success/10 text-success">
         <CheckCircle2 size={18} />
         <span className="text-sm font-medium">
-          Immobilie &quot;{proposal.name}&quot; wurde angelegt.
+          Immobilie &quot;{proposal.name}&quot; wurde {isUpdate ? "aktualisiert" : "angelegt"}.
         </span>
       </Card>
     );
@@ -34,10 +36,10 @@ export function PropertyProposalCard({ proposal }: { proposal: PropertyProposal 
     <Card>
       <div className="mb-3 flex items-center gap-2 text-sm font-medium text-accent">
         <Building2 size={16} />
-        Immobilien-Vorschlag — bitte prüfen und bestätigen
+        {isUpdate ? "Änderung" : "Immobilien-Vorschlag"} — bitte prüfen und bestätigen
       </div>
       <PropertyForm
-        action={createPropertyAction}
+        action={isUpdate ? updatePropertyAction.bind(null, proposal.id!) : createPropertyAction}
         property={{
           name: proposal.name,
           address: proposal.address ?? null,
@@ -47,7 +49,7 @@ export function PropertyProposalCard({ proposal }: { proposal: PropertyProposal 
         }}
         documents={[]}
         onDone={() => setSaved(true)}
-        submitLabel="Hinzufügen"
+        submitLabel={isUpdate ? "Änderungen speichern" : "Hinzufügen"}
       />
       <button
         onClick={() => setDismissed(true)}

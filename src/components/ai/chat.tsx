@@ -1,20 +1,33 @@
 "use client";
 
-import { useEffect, useRef, useState, type ComponentType } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ComponentType } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { Sparkles, ArrowUp, Paperclip, X, FileText, Image as ImageIcon } from "lucide-react";
+import {
+  Sparkles,
+  ArrowUp,
+  Paperclip,
+  X,
+  FileText,
+  Image as ImageIcon,
+  ChevronDown,
+} from "lucide-react";
 import clsx from "clsx";
 import { uploadChatAttachmentAction } from "@/lib/actions/document-actions";
+import { VoiceInputButton } from "@/components/voice/voice-input-button";
 import { ContractProposalCard } from "@/components/ai/contract-proposal-card";
 import { GoalProposalCard } from "@/components/ai/goal-proposal-card";
 import { WealthProposalCard } from "@/components/ai/wealth-proposal-card";
 import { VehicleProposalCard } from "@/components/ai/vehicle-proposal-card";
 import { PropertyProposalCard } from "@/components/ai/property-proposal-card";
 import { HealthProposalCard } from "@/components/ai/health-proposal-card";
+import { DeleteProposalCard } from "@/components/ai/delete-proposal-card";
+import { ThinkingIndicator } from "@/components/ai/thinking-indicator";
 import type { AiMessageRow, MessageAttachment } from "@/lib/ai-messages";
 
-// Every "propose_*" tool result renders through this map — add one entry
-// here (matching the `proposalType` used server-side) to support a new kind.
+// Every "propose_*"/update/delete tool result renders through this map — add
+// one entry here (matching the `proposalType` used server-side) to support a
+// new kind. Update proposals reuse the same card as create (an `id` in the
+// data switches the card into update mode).
 const PROPOSAL_CARDS: Record<string, ComponentType<{ proposal: never }>> = {
   contract_proposal: ContractProposalCard,
   goal_proposal: GoalProposalCard,
@@ -22,6 +35,7 @@ const PROPOSAL_CARDS: Record<string, ComponentType<{ proposal: never }>> = {
   vehicle_proposal: VehicleProposalCard,
   property_proposal: PropertyProposalCard,
   health_proposal: HealthProposalCard,
+  delete_proposal: DeleteProposalCard,
 };
 
 type Proposal = { type: string; data: unknown };
@@ -68,23 +82,58 @@ export function Chat({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [showJumpButton, setShowJumpButton] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const autoSentRef = useRef(false);
 
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [messages]);
+  // Runs before paint so the initial render already sits at the bottom —
+  // no visible jump-down after the messages first show up.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, []);
 
   useEffect(() => {
-    const initialQuery = searchParams.get("q");
-    if (!initialQuery || autoSentRef.current) return;
+    const el = scrollRef.current;
+    if (!el || !isNearBottomRef.current) return;
+    el.scrollTop = el.scrollHeight;
+  }, [messages]);
+
+  function handleScroll() {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const nearBottom = distanceFromBottom < 120;
+    isNearBottomRef.current = nearBottom;
+    setShowJumpButton(!nearBottom);
+  }
+
+  function scrollToBottom() {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    isNearBottomRef.current = true;
+    setShowJumpButton(false);
+  }
+
+  useEffect(() => {
+    const initialQuery = searchParams.get("q") ?? "";
+    const attachmentId = searchParams.get("attachmentId");
+    const attachmentName = searchParams.get("attachmentName");
+    const attachmentMime = searchParams.get("attachmentMime");
+    if ((!initialQuery && !attachmentId) || autoSentRef.current) return;
     autoSentRef.current = true;
     router.replace(pathname);
-    send(initialQuery);
+    const initialAttachments: MessageAttachment[] =
+      attachmentId && attachmentName && attachmentMime
+        ? [{ documentId: attachmentId, name: attachmentName, mimeType: attachmentMime }]
+        : [];
+    send(initialQuery, initialAttachments);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -110,15 +159,17 @@ export function Chat({
     ]);
   }
 
-  async function send(overrideText?: string) {
+  async function send(overrideText?: string, overrideAttachments?: MessageAttachment[]) {
     const text = (overrideText ?? input).trim();
-    if (!text && pendingAttachments.length === 0) return;
+    const attachments = overrideAttachments ?? pendingAttachments;
+    if (!text && attachments.length === 0) return;
     if (sending) return;
 
     setInput("");
-    const attachments = pendingAttachments;
     setPendingAttachments([]);
     setSending(true);
+    isNearBottomRef.current = true;
+    setShowJumpButton(false);
     setMessages((prev) => [
       ...prev,
       { role: "user", text, attachments },
@@ -167,63 +218,84 @@ export function Chat({
 
   return (
     <div className="flex h-[calc(100vh-8rem)] flex-1 flex-col md:h-[calc(100vh-4rem)]">
-      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto pb-4">
-        {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center gap-3 py-16 text-center text-foreground-muted">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/15 text-accent">
-              <Sparkles size={24} />
+      <div className="relative min-h-0 flex-1">
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="h-full space-y-3 overflow-y-auto pb-4"
+        >
+          {messages.length === 0 && (
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center text-foreground-muted">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/15 text-accent">
+                <Sparkles size={24} />
+              </div>
+              <p className="max-w-xs text-sm">
+                Frag LIFE etwas oder lade ein Dokument/Foto hoch — z. B. &quot;Leg mir meinen
+                Stromvertrag an&quot;.
+              </p>
             </div>
-            <p className="max-w-xs text-sm">
-              Frag LIFE etwas oder lade ein Dokument/Foto hoch — z. B. &quot;Leg mir meinen
-              Stromvertrag an&quot;.
-            </p>
-          </div>
+          )}
+          {messages.map((m, i) => (
+            <div key={i} className={clsx("flex", m.role === "user" ? "justify-end" : "justify-start")}>
+              <div className={clsx("max-w-[85%]", m.proposal ? "w-full" : "")}>
+                {m.attachments.length > 0 && (
+                  <div className="mb-1.5 flex flex-wrap justify-end gap-1.5">
+                    {m.attachments.map((a) => (
+                      <span
+                        key={a.documentId}
+                        className="flex items-center gap-1.5 rounded-full bg-surface-muted px-2.5 py-1 text-xs text-foreground-muted"
+                      >
+                        {a.mimeType.startsWith("image/") ? (
+                          <ImageIcon size={12} />
+                        ) : (
+                          <FileText size={12} />
+                        )}
+                        {a.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {m.text ? (
+                  <div
+                    className={clsx(
+                      "whitespace-pre-wrap rounded-life px-4 py-2.5 text-sm",
+                      m.role === "user"
+                        ? "bg-accent text-accent-foreground"
+                        : "bg-surface-muted text-foreground"
+                    )}
+                  >
+                    {m.text}
+                  </div>
+                ) : (
+                  sending &&
+                  i === messages.length - 1 &&
+                  m.role === "assistant" && (
+                    <ThinkingIndicator hasAttachment={(messages[i - 1]?.attachments.length ?? 0) > 0} />
+                  )
+                )}
+                {m.proposal &&
+                  (() => {
+                    const ProposalCard = PROPOSAL_CARDS[m.proposal.type];
+                    if (!ProposalCard) return null;
+                    return (
+                      <div className="mt-2">
+                        <ProposalCard proposal={m.proposal.data as never} />
+                      </div>
+                    );
+                  })()}
+              </div>
+            </div>
+          ))}
+        </div>
+        {showJumpButton && (
+          <button
+            onClick={scrollToBottom}
+            aria-label="Nach unten springen"
+            className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium text-foreground-muted shadow-md hover:bg-surface-muted"
+          >
+            <ChevronDown size={14} /> Nach unten
+          </button>
         )}
-        {messages.map((m, i) => (
-          <div key={i} className={clsx("flex", m.role === "user" ? "justify-end" : "justify-start")}>
-            <div className={clsx("max-w-[85%]", m.proposal ? "w-full" : "")}>
-              {m.attachments.length > 0 && (
-                <div className="mb-1.5 flex flex-wrap justify-end gap-1.5">
-                  {m.attachments.map((a) => (
-                    <span
-                      key={a.documentId}
-                      className="flex items-center gap-1.5 rounded-full bg-surface-muted px-2.5 py-1 text-xs text-foreground-muted"
-                    >
-                      {a.mimeType.startsWith("image/") ? (
-                        <ImageIcon size={12} />
-                      ) : (
-                        <FileText size={12} />
-                      )}
-                      {a.name}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {m.text && (
-                <div
-                  className={clsx(
-                    "whitespace-pre-wrap rounded-life px-4 py-2.5 text-sm",
-                    m.role === "user"
-                      ? "bg-accent text-accent-foreground"
-                      : "bg-surface-muted text-foreground"
-                  )}
-                >
-                  {m.text || (sending && i === messages.length - 1 ? "…" : "")}
-                </div>
-              )}
-              {m.proposal &&
-                (() => {
-                  const ProposalCard = PROPOSAL_CARDS[m.proposal.type];
-                  if (!ProposalCard) return null;
-                  return (
-                    <div className="mt-2">
-                      <ProposalCard proposal={m.proposal.data as never} />
-                    </div>
-                  );
-                })()}
-            </div>
-          </div>
-        ))}
       </div>
 
       {uploadError && (
@@ -270,6 +342,7 @@ export function Chat({
         >
           <Paperclip size={18} />
         </button>
+        <VoiceInputButton onResult={setInput} />
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}

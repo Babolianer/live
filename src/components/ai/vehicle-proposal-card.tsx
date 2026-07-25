@@ -4,9 +4,10 @@ import { useState } from "react";
 import { CheckCircle2, Car } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { VehicleForm } from "@/components/garage/vehicle-form";
-import { createVehicleAction } from "@/lib/actions/vehicle-actions";
+import { createVehicleAction, updateVehicleAction } from "@/lib/actions/vehicle-actions";
 
 export type VehicleProposal = {
+  id?: string;
   name: string;
   licensePlate?: string | null;
   purchaseDate?: string | null;
@@ -18,13 +19,16 @@ export type VehicleProposal = {
 export function VehicleProposalCard({ proposal }: { proposal: VehicleProposal }) {
   const [saved, setSaved] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const isUpdate = !!proposal.id;
 
   if (dismissed) return null;
   if (saved) {
     return (
       <Card className="flex items-center gap-2 border-success/30 bg-success/10 text-success">
         <CheckCircle2 size={18} />
-        <span className="text-sm font-medium">Fahrzeug &quot;{proposal.name}&quot; wurde angelegt.</span>
+        <span className="text-sm font-medium">
+          Fahrzeug &quot;{proposal.name}&quot; wurde {isUpdate ? "aktualisiert" : "angelegt"}.
+        </span>
       </Card>
     );
   }
@@ -33,10 +37,10 @@ export function VehicleProposalCard({ proposal }: { proposal: VehicleProposal })
     <Card>
       <div className="mb-3 flex items-center gap-2 text-sm font-medium text-accent">
         <Car size={16} />
-        Fahrzeug-Vorschlag — bitte prüfen und bestätigen
+        {isUpdate ? "Änderung" : "Fahrzeug-Vorschlag"} — bitte prüfen und bestätigen
       </div>
       <VehicleForm
-        action={createVehicleAction}
+        action={isUpdate ? updateVehicleAction.bind(null, proposal.id!) : createVehicleAction}
         vehicle={{
           name: proposal.name,
           license_plate: proposal.licensePlate ?? null,
@@ -47,7 +51,7 @@ export function VehicleProposalCard({ proposal }: { proposal: VehicleProposal })
         }}
         documents={[]}
         onDone={() => setSaved(true)}
-        submitLabel="Hinzufügen"
+        submitLabel={isUpdate ? "Änderungen speichern" : "Hinzufügen"}
       />
       <button
         onClick={() => setDismissed(true)}

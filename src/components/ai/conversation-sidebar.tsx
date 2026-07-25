@@ -41,7 +41,7 @@ export function ConversationSidebar({
   }
 
   return (
-    <aside className="hidden w-64 shrink-0 flex-col gap-3 border-r border-border py-1 pr-4 md:flex">
+    <aside className="sticky top-8 hidden h-[calc(100vh-4rem)] w-64 shrink-0 flex-col gap-3 border-r border-border py-1 pr-4 md:flex">
       <button
         onClick={newChat}
         disabled={isPending}
