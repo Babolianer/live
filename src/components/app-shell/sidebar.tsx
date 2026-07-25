@@ -7,6 +7,7 @@ import { Sparkles, Lock } from "lucide-react";
 import { sidebarNav, comingSoonNav } from "@/lib/nav";
 import { iconMap } from "@/components/icon-map";
 import { LogoutButton } from "@/components/app-shell/logout-button";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import type { SessionUser } from "@/lib/auth";
 
 export function Sidebar({ user }: { user: SessionUser }) {
@@ -18,10 +19,11 @@ export function Sidebar({ user }: { user: SessionUser }) {
         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/15 text-accent">
           <Sparkles size={18} />
         </div>
-        <div>
-          <p className="font-heading text-lg font-semibold leading-none">LIFE</p>
-          <p className="text-xs text-foreground-muted">AI OS for your life</p>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-heading text-lg font-semibold leading-none">LIFE</p>
+          <p className="truncate text-xs text-foreground-muted">AI OS for your life</p>
         </div>
+        <ThemeToggle />
       </div>
 
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">

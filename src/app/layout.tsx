@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, Inter } from "next/font/google";
+import { ThemeScript } from "@/components/theme/theme-script";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -22,10 +23,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f6f6f4" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b0b12" },
-  ],
+  themeColor: "#0b0b12",
   width: "device-width",
   initialScale: 1,
 };
@@ -41,6 +39,9 @@ export default function RootLayout({
       className={`${spaceGrotesk.variable} ${inter.variable} h-full antialiased`}
       suppressHydrationWarning
     >
+      <head>
+        <ThemeScript />
+      </head>
       <body className="min-h-full">{children}</body>
     </html>
   );

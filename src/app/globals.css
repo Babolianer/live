@@ -1,21 +1,8 @@
 @import "tailwindcss";
 
+/* Dark is the product default (set explicitly, not just via system
+   preference) — light is an opt-in override via the theme toggle. */
 :root {
-  --background: #f6f6f4;
-  --surface: #ffffff;
-  --surface-muted: #eeeeec;
-  --foreground: #14141a;
-  --foreground-muted: #6b6b76;
-  --border: #e4e4e1;
-  --accent: #6c5ce7;
-  --accent-foreground: #ffffff;
-  --success: #22c55e;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-  --radius: 16px;
-}
-
-:root[data-theme="dark"] {
   --background: #0b0b12;
   --surface: #15151f;
   --surface-muted: #1c1c28;
@@ -24,19 +11,23 @@
   --border: #262633;
   --accent: #8b7cf6;
   --accent-foreground: #ffffff;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --radius: 16px;
+  color-scheme: dark;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --background: #0b0b12;
-    --surface: #15151f;
-    --surface-muted: #1c1c28;
-    --foreground: #f4f4f6;
-    --foreground-muted: #9797a6;
-    --border: #262633;
-    --accent: #8b7cf6;
-    --accent-foreground: #ffffff;
-  }
+:root[data-theme="light"] {
+  color-scheme: light;
+  --background: #f6f6f4;
+  --surface: #ffffff;
+  --surface-muted: #eeeeec;
+  --foreground: #14141a;
+  --foreground-muted: #6b6b76;
+  --border: #e4e4e1;
+  --accent: #6c5ce7;
+  --accent-foreground: #ffffff;
 }
 
 @theme inline {
