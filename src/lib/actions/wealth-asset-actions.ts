@@ -6,6 +6,7 @@ import { requireSessionUser } from "@/lib/auth";
 import { insertWealthAsset, updateWealthAsset, deleteWealthAsset, getWealthAsset, type WealthAssetInput } from "@/lib/wealth-assets";
 import { ensureDefaultWealthGroup } from "@/lib/wealth-groups";
 import { createSnapshot } from "@/lib/wealth-finance";
+import { upsertRealEstateDetails } from "@/lib/wealth-real-estate";
 import { ASSET_TYPES } from "@/lib/wealth-asset-constants";
 
 export type WealthAssetFormState = { error?: string } | undefined;
@@ -40,12 +41,51 @@ function parseForm(formData: FormData) {
   });
 }
 
+const realEstateDetailsSchema = z.object({
+  sourceUrl: z.string().nullable().optional(),
+  livingArea: z.number().nullable().optional(),
+  landArea: z.number().nullable().optional(),
+  rooms: z.number().nullable().optional(),
+  buildYear: z.number().nullable().optional(),
+  energyClass: z.string().nullable().optional(),
+  condition: z.string().nullable().optional(),
+});
+
+// The Exposé-Analyse (real-estate-listing-import.tsx) hands its structured
+// findings through as one hidden JSON field — malformed/missing input just
+// means "nothing to persist", not a form error.
+async function persistRealEstateDetailsIfPresent(userId: string, assetId: string, formData: FormData) {
+  const raw = formData.get("realEstateDetailsJson");
+  if (typeof raw !== "string" || !raw) return;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return;
+  }
+
+  const result = realEstateDetailsSchema.safeParse(parsed);
+  if (!result.success) return;
+
+  await upsertRealEstateDetails(userId, assetId, {
+    sourceUrl: result.data.sourceUrl ?? null,
+    livingArea: result.data.livingArea ?? null,
+    landArea: result.data.landArea ?? null,
+    rooms: result.data.rooms ?? null,
+    buildYear: result.data.buildYear ?? null,
+    energyClass: result.data.energyClass ?? null,
+    condition: result.data.condition ?? null,
+  });
+}
+
 export async function createWealthAssetAction(_prevState: WealthAssetFormState, formData: FormData): Promise<WealthAssetFormState> {
   const user = await requireSessionUser();
   const parsed = parseForm(formData);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Ungültige Eingabe." };
 
-  await insertWealthAsset(user.id, parsed.data as WealthAssetInput);
+  const assetId = await insertWealthAsset(user.id, parsed.data as WealthAssetInput);
+  if (parsed.data.typ === "IMMOBILIE") await persistRealEstateDetailsIfPresent(user.id, assetId, formData);
   await createSnapshot(user.id);
   revalidatePath("/wealth");
   revalidatePath("/wealth/vermoegen");
@@ -59,6 +99,7 @@ export async function updateWealthAssetAction(id: string, _prevState: WealthAsse
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Ungültige Eingabe." };
 
   await updateWealthAsset(id, user.id, parsed.data as WealthAssetInput);
+  if (parsed.data.typ === "IMMOBILIE") await persistRealEstateDetailsIfPresent(user.id, id, formData);
   await createSnapshot(user.id);
   revalidatePath("/wealth");
   revalidatePath("/wealth/vermoegen");

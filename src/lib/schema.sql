@@ -350,3 +350,22 @@ CREATE TABLE IF NOT EXISTS wealth_expenses (
   created_at    TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_wealth_expenses_user ON wealth_expenses(user_id, date);
+
+-- Structured Exposé-Daten für ein Immobilien-Asset (1:1) — ergänzt den
+-- Kapitalverwaltung-Datenmodell-Baustein "RealEstateDetails", der bislang nur
+-- als Freitext in wealth_assets.notes landete.
+CREATE TABLE IF NOT EXISTS wealth_real_estate_details (
+  id            TEXT PRIMARY KEY,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  asset_id      TEXT NOT NULL UNIQUE REFERENCES wealth_assets(id) ON DELETE CASCADE,
+  source_url    TEXT,
+  living_area   REAL,
+  land_area     REAL,
+  rooms         REAL,
+  build_year    INTEGER,
+  energy_class  TEXT,
+  condition     TEXT,
+  created_at    TEXT NOT NULL,
+  updated_at    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wealth_real_estate_details_asset ON wealth_real_estate_details(asset_id);

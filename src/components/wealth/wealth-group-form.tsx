@@ -16,6 +16,17 @@ type Props = {
 const inputClass = "w-full rounded-life border border-border bg-surface-muted px-3.5 py-2.5 text-sm outline-none focus:border-accent";
 const labelClass = "mb-1.5 block text-sm font-medium";
 
+const GROUP_ICON_OPTIONS = [
+  { value: "wallet", label: "Geldbeutel" },
+  { value: "landmark", label: "Bank" },
+  { value: "trending-up", label: "Trend" },
+  { value: "piggy-bank", label: "Sparschwein" },
+  { value: "coins", label: "Münzen" },
+  { value: "building", label: "Gebäude" },
+  { value: "home", label: "Haus" },
+  { value: "shield", label: "Schild" },
+] as const;
+
 export function WealthGroupForm({ action, group, onDone, submitLabel }: Props) {
   const [state, formAction, pending] = useActionState<WealthGroupFormState, FormData>(async (prevState, formData) => {
     const result = await action(prevState, formData);
@@ -68,13 +79,26 @@ export function WealthGroupForm({ action, group, onDone, submitLabel }: Props) {
         </div>
       </div>
 
-      <div>
-        <label className={labelClass} htmlFor="farbe">
-          Farbe
-        </label>
-        <input id="farbe" name="farbe" type="color" defaultValue={group?.farbe ?? "#6366f1"} className="h-10 w-16 rounded-life border border-border bg-surface-muted" />
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelClass} htmlFor="farbe">
+            Farbe
+          </label>
+          <input id="farbe" name="farbe" type="color" defaultValue={group?.farbe ?? "#6366f1"} className="h-10 w-16 rounded-life border border-border bg-surface-muted" />
+        </div>
+        <div>
+          <label className={labelClass} htmlFor="icon">
+            Icon
+          </label>
+          <select id="icon" name="icon" defaultValue={group?.icon ?? "wallet"} className={inputClass}>
+            {GROUP_ICON_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
-      <input type="hidden" name="icon" value={group?.icon ?? "wallet"} />
 
       {state?.error && <p className="rounded-life bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{state.error}</p>}
 

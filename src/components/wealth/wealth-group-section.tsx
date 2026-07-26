@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Pencil, Trash2, Plus } from "lucide-react";
+import { Pencil, Trash2, Plus, Wallet } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { WealthGroupForm } from "@/components/wealth/wealth-group-form";
 import { WealthAssetForm } from "@/components/wealth/wealth-asset-form";
@@ -9,6 +9,7 @@ import { WealthAssetRowItem } from "@/components/wealth/wealth-asset-row";
 import { updateWealthGroupAction, deleteWealthGroupAction } from "@/lib/actions/wealth-group-actions";
 import { createWealthAssetAction } from "@/lib/actions/wealth-asset-actions";
 import { GROUP_TYPE_LABELS } from "@/lib/wealth-asset-constants";
+import { iconMap } from "@/components/icon-map";
 import type { WealthGroupRow } from "@/lib/wealth-groups";
 import type { WealthAssetRow } from "@/lib/wealth-assets";
 import type { WealthSectorRow } from "@/lib/wealth-sectors";
@@ -25,6 +26,7 @@ export function WealthGroupSection({ group, assets, allGroups, sectors }: Props)
   const [addingAsset, setAddingAsset] = useState(false);
   const [isPending, startTransition] = useTransition();
   const total = assets.reduce((sum, a) => sum + a.quantity * a.price_per_unit, 0);
+  const GroupIcon = iconMap[group.icon] ?? Wallet;
 
   if (editing) {
     return (
@@ -42,7 +44,12 @@ export function WealthGroupSection({ group, assets, allGroups, sectors }: Props)
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full" style={{ background: group.farbe }} />
+            <span
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+              style={{ background: `${group.farbe}26`, color: group.farbe }}
+            >
+              <GroupIcon size={13} />
+            </span>
             <p className="truncate font-medium">{group.name}</p>
             <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs text-foreground-muted">{GROUP_TYPE_LABELS[group.typ]}</span>
           </div>

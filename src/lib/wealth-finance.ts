@@ -9,6 +9,7 @@ import {
 import type {
   AssetAllocation,
   GroupSummary,
+  NetWorthSnapshotRow,
   SavingsGoalProgress,
   SectorAllocation,
   StaleAssetInfo,
@@ -153,12 +154,49 @@ export async function createSnapshot(userId: string) {
   }
 }
 
-export async function listNetWorthSnapshots(userId: string, limit = 365) {
-  const rows = await query<{ date: string; net_worth: number; total_debts: number }[]>(
-    `SELECT date, net_worth, total_debts FROM wealth_net_worth_snapshots WHERE user_id = ? ORDER BY date DESC LIMIT ?`,
+export async function listNetWorthSnapshots(userId: string, limit = 365): Promise<NetWorthSnapshotRow[]> {
+  const rows = await query<NetWorthSnapshotRow[]>(
+    `SELECT id, date, net_worth, total_debts FROM wealth_net_worth_snapshots WHERE user_id = ? ORDER BY date DESC LIMIT ?`,
     [userId, limit]
   );
   return rows.reverse();
+}
+
+// ── Manual snapshot editing ──────────────────────────────────────────────
+// Lets a user enter/correct real historical net-worth figures they know from
+// old statements — separate from createSnapshot's automatic, current-value
+// snapshots. breakdown_json stays empty ({}) for manual entries since we have
+// no real per-type split for a point the user just typed in.
+
+export async function insertManualSnapshot(userId: string, date: string, netWorth: number, totalDebts: number) {
+  const dayIso = new Date(date).toISOString();
+  const existing = await query<{ id: string }[]>(
+    `SELECT id FROM wealth_net_worth_snapshots WHERE user_id = ? AND date = ?`,
+    [userId, dayIso]
+  );
+  if (existing[0]) {
+    await query(`UPDATE wealth_net_worth_snapshots SET net_worth=?, total_debts=? WHERE id=?`, [netWorth, totalDebts, existing[0].id]);
+    return existing[0].id;
+  }
+  const id = newId();
+  await query(
+    `INSERT INTO wealth_net_worth_snapshots (id, user_id, date, net_worth, total_debts, breakdown_json) VALUES (?, ?, ?, ?, ?, '{}')`,
+    [id, userId, dayIso, netWorth, totalDebts]
+  );
+  return id;
+}
+
+export async function updateManualSnapshot(id: string, userId: string, netWorth: number, totalDebts: number) {
+  await query(`UPDATE wealth_net_worth_snapshots SET net_worth=?, total_debts=? WHERE id=? AND user_id=?`, [
+    netWorth,
+    totalDebts,
+    id,
+    userId,
+  ]);
+}
+
+export async function deleteSnapshot(id: string, userId: string) {
+  await query(`DELETE FROM wealth_net_worth_snapshots WHERE id = ? AND user_id = ?`, [id, userId]);
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────
@@ -263,6 +301,7 @@ export async function getDashboardData(userId: string): Promise<WealthDashboardD
     ],
     allocation,
     history: snapshots.map((s) => ({ date: s.date.slice(0, 10), value: s.net_worth })),
+    snapshots,
     goals,
     groups,
     staleAssets,

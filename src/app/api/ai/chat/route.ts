@@ -9,13 +9,13 @@ import {
 } from "@/lib/ai-conversations";
 import { getDocument } from "@/lib/documents";
 import { readImageAsDataUrl } from "@/lib/storage";
-import { runChat, type ChatMessage, type ContentPart, type ToolDefinition } from "@/lib/openrouter";
+import { runChat, type ChatMessage, type ContentPart, type ToolDefinition } from "@/lib/groq";
 import { CATEGORIES } from "@/lib/contract-constants";
 import { GOAL_CATEGORIES } from "@/lib/goal-constants";
 import { ASSET_TYPES } from "@/lib/wealth-asset-constants";
 import { ENTITY_HANDLERS, ENTITY_TYPES, type EntityType } from "@/lib/entity-registry";
 
-const VISION_MODEL = process.env.OPENROUTER_VISION_MODEL || "google/gemma-4-31b-it:free";
+const VISION_MODEL = process.env.GROQ_VISION_MODEL || "meta-llama/llama-4-scout-17b-16e-instruct";
 
 const emptyToNull = (v: unknown) => (v === "" || v === undefined ? null : v);
 

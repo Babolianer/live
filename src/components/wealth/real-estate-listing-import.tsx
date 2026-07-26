@@ -4,8 +4,18 @@ import { useState } from "react";
 import { Upload, Link as LinkIcon, Loader2 } from "lucide-react";
 import type { ExtendedAnalyzedListing } from "@/lib/listing-extraction";
 
+export type RealEstateDetailsPayload = {
+  sourceUrl?: string;
+  livingArea?: number;
+  landArea?: number;
+  rooms?: number;
+  buildYear?: number;
+  energyClass?: string;
+  condition?: string;
+};
+
 type Props = {
-  onApply: (data: { name?: string; purchasePrice?: number; notes?: string }) => void;
+  onApply: (data: { name?: string; purchasePrice?: number; notes?: string; details: RealEstateDetailsPayload }) => void;
 };
 
 function summarizeNotes(data: ExtendedAnalyzedListing): string {
@@ -29,14 +39,27 @@ export function RealEstateListingImport({ onApply }: Props) {
   const [url, setUrl] = useState("");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  async function handleResult(res: Response) {
+  async function handleResult(res: Response, sourceUrl?: string) {
     const json = await res.json().catch(() => null);
     if (!json?.success) {
       setMessage({ type: "error", text: json?.error ?? "Analyse fehlgeschlagen." });
       return;
     }
     const data = json.data as ExtendedAnalyzedListing;
-    onApply({ name: data.name, purchasePrice: data.purchasePrice, notes: summarizeNotes(data) || undefined });
+    onApply({
+      name: data.name,
+      purchasePrice: data.purchasePrice,
+      notes: summarizeNotes(data) || undefined,
+      details: {
+        sourceUrl,
+        livingArea: data.livingArea,
+        landArea: data.landArea,
+        rooms: data.rooms,
+        buildYear: data.buildYear,
+        energyClass: data.energyClass,
+        condition: data.condition,
+      },
+    });
     const missing = (json.missingFields as string[]) ?? [];
     setMessage({
       type: "success",
@@ -69,7 +92,7 @@ export function RealEstateListingImport({ onApply }: Props) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ url: url.trim() }),
       });
-      await handleResult(res);
+      await handleResult(res, url.trim());
     } catch {
       setMessage({ type: "error", text: "Analyse fehlgeschlagen." });
     } finally {

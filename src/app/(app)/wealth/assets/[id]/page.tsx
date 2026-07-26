@@ -5,6 +5,7 @@ import { listWealthGroups } from "@/lib/wealth-groups";
 import { listWealthSectors } from "@/lib/wealth-sectors";
 import { getAssetTransactions, listDebtsForAsset } from "@/lib/wealth-finance";
 import { ensurePriceHistoryCoverage, listPriceHistory } from "@/lib/wealth-prices";
+import { getRealEstateDetails } from "@/lib/wealth-real-estate";
 import { LIVE_PRICE_ASSET_TYPES } from "@/lib/wealth-asset-constants";
 import { Card } from "@/components/ui/card";
 import { WealthAssetHeader } from "@/components/wealth/wealth-asset-header";
@@ -33,12 +34,67 @@ export default async function WealthAssetDetailPage({ params }: { params: Promis
     await ensurePriceHistoryCoverage(user.id, { id: asset.id, symbol: asset.symbol, typ: asset.typ });
   }
   const priceHistory = isLivePriced ? await listPriceHistory(id, user.id) : [];
+  const realEstateDetails = asset.typ === "IMMOBILIE" ? await getRealEstateDetails(id, user.id) : null;
 
   const group = groups.find((g) => g.id === asset.group_id);
 
   return (
     <div className="flex flex-col gap-6">
       <WealthAssetHeader asset={asset} groupName={group?.name ?? "—"} groups={groups} sectors={sectors} />
+
+      {realEstateDetails && (
+        <Card>
+          <p className="mb-3 font-heading font-semibold">Objektdaten</p>
+          <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+            {realEstateDetails.living_area !== null && (
+              <div>
+                <dt className="text-foreground-muted">Wohnfläche</dt>
+                <dd className="font-medium">{realEstateDetails.living_area} m²</dd>
+              </div>
+            )}
+            {realEstateDetails.land_area !== null && (
+              <div>
+                <dt className="text-foreground-muted">Grundstück</dt>
+                <dd className="font-medium">{realEstateDetails.land_area} m²</dd>
+              </div>
+            )}
+            {realEstateDetails.rooms !== null && (
+              <div>
+                <dt className="text-foreground-muted">Zimmer</dt>
+                <dd className="font-medium">{realEstateDetails.rooms}</dd>
+              </div>
+            )}
+            {realEstateDetails.build_year !== null && (
+              <div>
+                <dt className="text-foreground-muted">Baujahr</dt>
+                <dd className="font-medium">{realEstateDetails.build_year}</dd>
+              </div>
+            )}
+            {realEstateDetails.energy_class !== null && (
+              <div>
+                <dt className="text-foreground-muted">Energieklasse</dt>
+                <dd className="font-medium">{realEstateDetails.energy_class}</dd>
+              </div>
+            )}
+            {realEstateDetails.condition !== null && (
+              <div>
+                <dt className="text-foreground-muted">Zustand</dt>
+                <dd className="font-medium">{realEstateDetails.condition}</dd>
+              </div>
+            )}
+          </dl>
+          {realEstateDetails.source_url && (
+            <a
+              href={realEstateDetails.source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-block text-sm text-accent hover:underline"
+            >
+              Quelle: {realEstateDetails.source_url}
+            </a>
+          )}
+        </Card>
+      )}
 
       {isLivePriced && (
         <Card>

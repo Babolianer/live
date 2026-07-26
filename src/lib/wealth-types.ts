@@ -70,11 +70,19 @@ export interface GroupSummary {
   assetCount: number;
 }
 
+export interface NetWorthSnapshotRow {
+  id: string;
+  date: string;
+  net_worth: number;
+  total_debts: number;
+}
+
 export interface WealthDashboardData {
   overview: WealthOverview;
   cards: { label: string; value: number }[];
   allocation: AssetAllocation;
   history: TimeSeriesPoint[];
+  snapshots: NetWorthSnapshotRow[];
   goals: SavingsGoalProgress[];
   groups: GroupSummary[];
   staleAssets: StaleAssetInfo[];

@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { AllocationDonut } from "@/components/wealth/allocation-donut";
 import { NetWorthChart } from "@/components/wealth/net-worth-chart";
 import { RefreshPricesButton } from "@/components/wealth/refresh-prices-button";
+import { WealthSnapshotEditor } from "@/components/wealth/wealth-snapshot-editor";
 
 function formatEuro(value: number) {
   return `€ ${value.toLocaleString("de-DE", { maximumFractionDigits: 0 })}`;
@@ -32,6 +33,8 @@ export default async function WealthDashboardPage() {
           <NetWorthChart points={data.history} />
         </div>
       </Card>
+
+      <WealthSnapshotEditor snapshots={data.snapshots} />
 
       {data.staleAssets.length > 0 && (
         <Card className="bg-warning/10">

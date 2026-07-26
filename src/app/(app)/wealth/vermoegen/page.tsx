@@ -5,6 +5,7 @@ import { listWealthSectors } from "@/lib/wealth-sectors";
 import { WealthGroupSection } from "@/components/wealth/wealth-group-section";
 import { NewWealthGroupCard } from "@/components/wealth/new-wealth-group-card";
 import { WealthCsvImportForm } from "@/components/wealth/wealth-csv-import-form";
+import { WealthExportLinks } from "@/components/wealth/wealth-export-links";
 
 export default async function WealthGroupsPage() {
   const user = await requireSessionUser();
@@ -32,6 +33,7 @@ export default async function WealthGroupsPage() {
       ))}
       <NewWealthGroupCard />
       {groups.length > 0 && <WealthCsvImportForm groups={groups} assets={assets} />}
+      <WealthExportLinks />
     </div>
   );
 }

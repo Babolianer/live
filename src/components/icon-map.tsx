@@ -11,6 +11,10 @@ import {
   Building2,
   Cog,
   Wrench,
+  Wallet,
+  PiggyBank,
+  Landmark,
+  Coins,
   type LucideIcon,
 } from "lucide-react";
 
@@ -27,4 +31,8 @@ export const iconMap: Record<string, LucideIcon> = {
   building: Building2,
   cog: Cog,
   wrench: Wrench,
+  wallet: Wallet,
+  "piggy-bank": PiggyBank,
+  landmark: Landmark,
+  coins: Coins,
 };

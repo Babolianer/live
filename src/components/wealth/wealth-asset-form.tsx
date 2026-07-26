@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ASSET_TYPES, ASSET_TYPE_LABELS } from "@/lib/wealth-asset-constants";
-import { RealEstateListingImport } from "@/components/wealth/real-estate-listing-import";
+import { RealEstateListingImport, type RealEstateDetailsPayload } from "@/components/wealth/real-estate-listing-import";
 import type { WealthAssetFormState } from "@/lib/actions/wealth-asset-actions";
 import type { WealthAssetRow } from "@/lib/wealth-assets";
 import type { WealthGroupRow } from "@/lib/wealth-groups";
@@ -33,6 +33,7 @@ export function WealthAssetForm({ action, asset, groups, sectors, defaultGroupId
   const [name, setName] = useState(asset?.name ?? "");
   const [pricePerUnit, setPricePerUnit] = useState(asset?.price_per_unit ?? 0);
   const [notes, setNotes] = useState(asset?.notes ?? "");
+  const [realEstateDetails, setRealEstateDetails] = useState<RealEstateDetailsPayload | null>(null);
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
@@ -42,6 +43,7 @@ export function WealthAssetForm({ action, asset, groups, sectors, defaultGroupId
             if (data.name) setName(data.name);
             if (data.purchasePrice !== undefined) setPricePerUnit(data.purchasePrice);
             if (data.notes) setNotes(data.notes);
+            setRealEstateDetails(data.details);
           }}
         />
       )}
@@ -144,6 +146,7 @@ export function WealthAssetForm({ action, asset, groups, sectors, defaultGroupId
       </div>
 
       <input type="hidden" name="currency" value="EUR" />
+      {realEstateDetails && <input type="hidden" name="realEstateDetailsJson" value={JSON.stringify(realEstateDetails)} />}
 
       <div>
         <label className={labelClass} htmlFor="notes">
